@@ -48,6 +48,25 @@ interface Eip6963AnnounceEvent extends Event {
 const discoveredMap = new Map<string, DiscoveredProvider>();
 const announceListeners = new Set<() => void>();
 let listenedWindow: Window | null = null;
+let isDispatchingRequest = false;
+let hasRequestedOnCurrentWindow = false;
+let notifyScheduled = false;
+
+function scheduleAnnounceNotify(): void {
+  if (notifyScheduled || announceListeners.size === 0) return;
+  notifyScheduled = true;
+  const run = () => {
+    notifyScheduled = false;
+    for (const listener of Array.from(announceListeners)) {
+      listener();
+    }
+  };
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(run);
+  } else {
+    void Promise.resolve().then(run);
+  }
+}
 
 function safeGetLocalStorage(): Storage | null {
   try {
@@ -108,24 +127,34 @@ export function resetWalletDiscoveryForTests(): void {
   discoveredMap.clear();
   announceListeners.clear();
   listenedWindow = null;
+  isDispatchingRequest = false;
+  hasRequestedOnCurrentWindow = false;
+  notifyScheduled = false;
 }
 
 function ensureEip6963Listener(): void {
   if (typeof window === 'undefined' || listenedWindow === window) return;
   listenedWindow = window;
+  hasRequestedOnCurrentWindow = false;
   window.addEventListener('eip6963:announceProvider', (rawEvent: Event) => {
     const event = rawEvent as Eip6963AnnounceEvent;
     const info = event.detail?.info;
     const provider = event.detail?.provider;
     if (info?.rdns && info?.name && provider) {
+      const existing = discoveredMap.get(info.rdns);
+      const changed =
+        !existing ||
+        existing.provider !== provider ||
+        existing.name !== info.name ||
+        existing.icon !== info.icon;
       discoveredMap.set(info.rdns, {
         rdns: info.rdns,
         name: info.name,
         icon: info.icon,
         provider,
       });
-      for (const listener of announceListeners) {
-        listener();
+      if (changed) {
+        scheduleAnnounceNotify();
       }
     }
   });
@@ -140,10 +169,13 @@ export function onEip6963Announce(listener: () => void): () => void {
   };
 }
 
-export function discoverEip6963Providers(): DiscoveredProvider[] {
+/**
+ * Pure read-only snapshot of discovered EIP-6963 providers (+ window.ethereum fallback).
+ * NEVER dispatches `eip6963:requestProvider`, so it is safe to call inside event listeners.
+ */
+export function getDiscoveredEip6963Providers(): DiscoveredProvider[] {
   if (typeof window === 'undefined') return [];
   ensureEip6963Listener();
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
 
   const list = Array.from(discoveredMap.values());
   const injected = (window as unknown as { ethereum?: Eip1193Provider }).ethereum;
@@ -155,6 +187,30 @@ export function discoverEip6963Providers(): DiscoveredProvider[] {
     });
   }
   return list;
+}
+
+/**
+ * Broadcast a single `eip6963:requestProvider` event with re-entrancy protection.
+ */
+export function requestEip6963Providers(): void {
+  if (typeof window === 'undefined' || isDispatchingRequest) return;
+  ensureEip6963Listener();
+  isDispatchingRequest = true;
+  hasRequestedOnCurrentWindow = true;
+  try {
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+  } finally {
+    isDispatchingRequest = false;
+  }
+}
+
+export function discoverEip6963Providers(options?: { request?: boolean }): DiscoveredProvider[] {
+  if (typeof window === 'undefined') return [];
+  ensureEip6963Listener();
+  if (options?.request === true || (options?.request !== false && !hasRequestedOnCurrentWindow)) {
+    requestEip6963Providers();
+  }
+  return getDiscoveredEip6963Providers();
 }
 
 function parseChainId(raw: unknown): number | null {
@@ -169,7 +225,11 @@ function parseChainId(raw: unknown): number | null {
 }
 
 export async function connectEvmWallet(rdns?: string): Promise<ConnectedEvmWallet> {
-  const providers = discoverEip6963Providers();
+  let providers = getDiscoveredEip6963Providers();
+  if (providers.length === 0) {
+    requestEip6963Providers();
+    providers = getDiscoveredEip6963Providers();
+  }
   const chosen = rdns
     ? providers.find((p) => p.rdns === rdns) ?? providers[0]
     : providers[0];
@@ -211,7 +271,11 @@ export async function restoreEvmWalletSession(): Promise<ConnectedEvmWallet | nu
   const pref = loadWalletPreference();
   if (!pref) return null;
 
-  const providers = discoverEip6963Providers();
+  let providers = getDiscoveredEip6963Providers();
+  if (providers.length === 0 && !hasRequestedOnCurrentWindow) {
+    requestEip6963Providers();
+    providers = getDiscoveredEip6963Providers();
+  }
   let chosen = providers.find((p) => p.rdns === pref.rdns);
 
   if (

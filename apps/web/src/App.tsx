@@ -23,9 +23,10 @@ import type {
 import {
   clearWalletPreference,
   connectEvmWallet,
-  discoverEip6963Providers,
+  getDiscoveredEip6963Providers,
   loadWalletPreference,
   onEip6963Announce,
+  requestEip6963Providers,
   restoreEvmWalletSession,
   subscribeWalletEvents,
   switchEvmChain,
@@ -239,7 +240,7 @@ export default function App() {
         },
       });
 
-      const found = discoverEip6963Providers();
+      const found = getDiscoveredEip6963Providers();
       setEvmWallet({
         address: connected.address,
         chainId: connected.chainId,
@@ -255,7 +256,7 @@ export default function App() {
     let restoring = false;
 
     const syncProviders = () => {
-      const found = discoverEip6963Providers();
+      const found = getDiscoveredEip6963Providers();
       setEvmWallet((prev) => ({
         ...prev,
         providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
@@ -275,14 +276,17 @@ export default function App() {
       }
     };
 
-    syncProviders();
-    void attemptSilentRestore();
-
     const unsubAnnounce = onEip6963Announce(() => {
       syncProviders();
       void attemptSilentRestore();
     });
 
+    // Broadcast eip6963:requestProvider exactly ONCE on mount
+    requestEip6963Providers();
+    syncProviders();
+    void attemptSilentRestore();
+
+    // Passive check for late-injected window.ethereum without re-broadcasting requestProvider
     const timer = window.setTimeout(() => {
       syncProviders();
       void attemptSilentRestore();

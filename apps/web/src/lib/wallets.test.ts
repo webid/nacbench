@@ -3,8 +3,11 @@ import {
   WALLET_STORAGE_KEY,
   clearWalletPreference,
   connectEvmWallet,
+  discoverEip6963Providers,
+  getDiscoveredEip6963Providers,
   loadWalletPreference,
   onEip6963Announce,
+  requestEip6963Providers,
   resetWalletDiscoveryForTests,
   restoreEvmWalletSession,
   saveWalletPreference,
@@ -88,6 +91,8 @@ function createMockWindow(opts?: {
     }
   };
 
+  let requestProviderCount = 0;
+
   const win = {
     localStorage,
     ethereum: opts?.injected,
@@ -100,9 +105,15 @@ function createMockWindow(opts?: {
       set.add(cb);
     },
     dispatchEvent: (event: Event) => {
-      if (event.type === 'eip6963:requestProvider' && opts?.eip6963) {
-        for (const entry of opts.eip6963) {
-          announce({ rdns: entry.rdns, name: entry.name }, entry.provider);
+      if (event.type === 'eip6963:requestProvider') {
+        requestProviderCount++;
+        if (requestProviderCount > 20) {
+          throw new Error('Infinite eip6963:requestProvider event loop detected!');
+        }
+        if (opts?.eip6963) {
+          for (const entry of opts.eip6963) {
+            announce({ rdns: entry.rdns, name: entry.name }, entry.provider);
+          }
         }
       }
       return true;
@@ -110,7 +121,11 @@ function createMockWindow(opts?: {
   };
 
   vi.stubGlobal('window', win);
-  return { store, announce };
+  return {
+    store,
+    announce,
+    getRequestProviderCount: () => requestProviderCount,
+  };
 }
 
 describe('wallets — silent reload restore, disconnect persistence, and provider events', () => {
@@ -210,11 +225,56 @@ describe('wallets — silent reload restore, disconnect persistence, and provide
       announceHits++;
     });
     env.announce({ rdns: 'io.metamask', name: 'MetaMask' }, mm.provider);
+    await Promise.resolve();
+    expect(announceHits).toBe(1);
+
+    // Duplicate announcement of identical provider must not re-fire listeners
+    env.announce({ rdns: 'io.metamask', name: 'MetaMask' }, mm.provider);
+    await Promise.resolve();
     expect(announceHits).toBe(1);
 
     // Single discovered provider satisfies legacy 'injected' fallback
     const restored = await restoreEvmWalletSession();
     expect(restored?.address).toBe('0x3333333333333333333333333333333333333333');
+    unsub();
+  });
+
+  it('never loops eip6963:requestProvider when a live wallet extension responds synchronously', async () => {
+    const mm = createMockProvider({
+      accounts: ['0x5555555555555555555555555555555555555555'],
+      chainIdHex: '0x2352c',
+    });
+    const env = createMockWindow({
+      eip6963: [{ rdns: 'io.metamask', name: 'MetaMask', provider: mm.provider }],
+    });
+
+    saveWalletPreference({ rdns: 'io.metamask', providerName: 'MetaMask' });
+
+    let announceCallbacks = 0;
+    let restoredAddr: string | null = null;
+
+    // Mirrors App.tsx mount flow: subscribe to announce, broadcast ONCE, read & restore
+    const unsub = onEip6963Announce(() => {
+      announceCallbacks++;
+      const list = getDiscoveredEip6963Providers();
+      expect(list).toHaveLength(1);
+      // Even a legacy discoverEip6963Providers() call must NOT re-broadcast requestProvider
+      expect(discoverEip6963Providers()).toHaveLength(1);
+      void restoreEvmWalletSession().then((res) => {
+        if (res) restoredAddr = res.address;
+      });
+    });
+
+    requestEip6963Providers();
+    expect(getDiscoveredEip6963Providers()).toHaveLength(1);
+
+    // Drain microtasks + promises
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(env.getRequestProviderCount()).toBe(1);
+    expect(announceCallbacks).toBe(1);
+    expect(restoredAddr).toBe('0x5555555555555555555555555555555555555555');
+    expect(mm.requests.map((r) => r.method)).toEqual(['eth_accounts', 'eth_chainId']);
     unsub();
   });
 
