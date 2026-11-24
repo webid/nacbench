@@ -1,0 +1,267 @@
+parameter (or (or (nat %burn_gas) (nat %echo_callback)) (or (string %force_fail) (or (string %record_ping) (string %set_paired_evm))));
+storage   (pair (address %admin) (pair (address %authorized_evm_gateway) (pair (nat %callback_count) (pair (string %last_note) (pair (address %last_sender) (pair (address %last_source) (pair (string %paired_evm_canary) (pair (nat %ping_count) (big_map %pings nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))))))))))));
+code
+  {
+    # Private variable: encode_u256 # pair @parameter @storage
+    LAMBDA
+      nat
+      bytes
+      {
+        # zero = sp.bytes( # nat
+        PUSH bytes 0x0000000000000000000000000000000000000000000000000000000000000000; # bytes : nat
+        SWAP;       # nat : bytes
+        # raw = sp.to_bytes(value) # nat : bytes
+        BYTES;      # bytes : bytes
+        # assert sp.len(raw) <= 32, "UINT256_OVERFLOW" # bytes : bytes
+        PUSH nat 32; # nat : bytes : bytes
+        DUP 2;      # bytes : nat : bytes : bytes
+        SIZE;       # nat : nat : bytes : bytes
+        COMPARE;    # int : bytes : bytes
+        LE;         # bool : bytes : bytes
+        IF
+          {}
+          {
+            PUSH string "UINT256_OVERFLOW"; # string : bytes : bytes
+            FAILWITH;   # FAILED
+          }; # bytes : bytes
+        SWAP;       # bytes : bytes
+        # padding = sp.slice(0, sp.as_nat(32 - sp.len(raw)), zero).unwrap_some( # bytes : bytes
+        DUP 2;      # bytes : bytes : bytes
+        SIZE;       # nat : bytes : bytes
+        PUSH nat 32; # nat : nat : bytes : bytes
+        SUB;        # int : bytes : bytes
+        ISNAT;      # option nat : bytes : bytes
+        IF_NONE
+          {
+            PUSH int 71; # int : bytes : bytes
+            FAILWITH;   # FAILED
+          }
+          {}; # @some : bytes : bytes
+        PUSH nat 0; # nat : @some : bytes : bytes
+        SLICE;      # option bytes : bytes
+        IF_NONE
+          {
+            PUSH string "PAD_FAILED"; # string : bytes
+            FAILWITH;   # FAILED
+          }
+          {}; # @some : bytes
+        # return padding + raw # @some : bytes
+        CONCAT;     # bytes
+      }; # lambda nat bytes : pair @parameter @storage
+    SWAP;       # pair @parameter @storage : lambda nat bytes
+    UNPAIR;     # @parameter : @storage : lambda nat bytes
+    IF_LEFT
+      {
+        IF_LEFT
+          {
+            # == burn_gas ==
+            # acc = sp.bytes("0x00") # @parameter%burn_gas : @storage : lambda nat bytes
+            PUSH bytes 0x00; # bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            # i = sp.nat(0) # bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            PUSH nat 0; # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            # while i < iterations: # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            DUP 3;      # @parameter%burn_gas : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            DUP 2;      # nat : @parameter%burn_gas : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            COMPARE;    # int : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            LT;         # bool : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            LOOP
+              {
+                SWAP;       # bytes : nat : @parameter%burn_gas : @storage : lambda nat bytes
+                # acc = sp.blake2b(acc) # bytes : nat : @parameter%burn_gas : @storage : lambda nat bytes
+                BLAKE2B;    # bytes : nat : @parameter%burn_gas : @storage : lambda nat bytes
+                SWAP;       # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                # i += 1 # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                PUSH nat 1; # nat : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                ADD;        # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                # check for next iteration # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                DUP 3;      # @parameter%burn_gas : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                DUP 2;      # nat : @parameter%burn_gas : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                COMPARE;    # int : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+                LT;         # bool : nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+              }; # nat : bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            DROP;       # bytes : @parameter%burn_gas : @storage : lambda nat bytes
+            SWAP;       # @parameter%burn_gas : bytes : @storage : lambda nat bytes
+            DROP;       # bytes : @storage : lambda nat bytes
+            DIG 2;      # lambda nat bytes : bytes : @storage
+            DROP;       # bytes : @storage
+            # assert sp.len(acc) > 0, "UNREACHABLE" # bytes : @storage
+            SIZE;       # nat : @storage
+            PUSH nat 0; # nat : nat : @storage
+            COMPARE;    # int : @storage
+            LT;         # bool : @storage
+            IF
+              {}
+              {
+                PUSH string "UNREACHABLE"; # string : @storage
+                FAILWITH;   # FAILED
+              }; # @storage
+            # self.data.ping_count += 1 # @storage
+            DUP;        # @storage : @storage
+            GET 15;     # nat : @storage
+            PUSH nat 1; # nat : nat : @storage
+            ADD;        # nat : @storage
+            UPDATE 15;  # @storage
+            NIL operation; # list operation : @storage
+          }
+          {
+            # == echo_callback ==
+            # assert self.data.paired_evm_canary != "", "PAIRED_EVM_NOT_SET" # @parameter%echo_callback : @storage : lambda nat bytes
+            PUSH string ""; # string : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # @storage : string : @parameter%echo_callback : @storage : lambda nat bytes
+            GET 13;     # string : string : @parameter%echo_callback : @storage : lambda nat bytes
+            COMPARE;    # int : @parameter%echo_callback : @storage : lambda nat bytes
+            NEQ;        # bool : @parameter%echo_callback : @storage : lambda nat bytes
+            IF
+              {}
+              {
+                PUSH string "PAIRED_EVM_NOT_SET"; # string : @parameter%echo_callback : @storage : lambda nat bytes
+                FAILWITH;   # FAILED
+              }; # @parameter%echo_callback : @storage : lambda nat bytes
+            SWAP;       # @storage : @parameter%echo_callback : lambda nat bytes
+            # self.data.callback_count += 1 # @storage : @parameter%echo_callback : lambda nat bytes
+            DUP;        # @storage : @storage : @parameter%echo_callback : lambda nat bytes
+            GET 5;      # nat : @storage : @parameter%echo_callback : lambda nat bytes
+            PUSH nat 1; # nat : nat : @storage : @parameter%echo_callback : lambda nat bytes
+            ADD;        # nat : @storage : @parameter%echo_callback : lambda nat bytes
+            UPDATE 5;   # @storage : @parameter%echo_callback : lambda nat bytes
+            SWAP;       # @parameter%echo_callback : @storage : lambda nat bytes
+            # abi_bytes = self.encode_u256(nonce) + self.encode_u256( # @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # lambda nat bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # @storage : lambda nat bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            GET 5;      # nat : lambda nat bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            EXEC;       # bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 4;      # lambda nat bytes : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # @parameter%echo_callback : lambda nat bytes : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            EXEC;       # bytes : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            CONCAT;     # bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            # gateway = sp.contract( # bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # @storage : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            GET 3;      # address : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            CONTRACT %call_evm (pair (string %destination) (pair (string %selector) (pair (bytes %data) (option %callback (contract bytes))))); # option (contract (pair (string %destination) (pair (string %selector) (pair (bytes %data) (option %callback (contract bytes)))))) : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            IF_NONE
+              {
+                PUSH string "GATEWAY_ENTRYPOINT_MISSING"; # string : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+                FAILWITH;   # FAILED
+              }
+              {}; # @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            # sp.transfer( # @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            NIL operation; # list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP;        # list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 3;      # @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            PUSH mutez 0; # mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            NONE (contract bytes); # option (contract bytes) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 7;      # bytes : option (contract bytes) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            PUSH string "onMichelsonCallback(uint256,uint256)"; # string : bytes : option (contract bytes) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DUP 11;     # @storage : string : bytes : option (contract bytes) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            GET 13;     # string : string : bytes : option (contract bytes) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            PAIR 4;     # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DIG 4;      # list operation : pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DROP;       # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @some : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DIG 4;      # @some : pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DROP;       # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : bytes : @parameter%echo_callback : @storage : lambda nat bytes
+            DIG 4;      # bytes : pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @parameter%echo_callback : @storage : lambda nat bytes
+            DROP;       # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @parameter%echo_callback : @storage : lambda nat bytes
+            DIG 4;      # @parameter%echo_callback : pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @storage : lambda nat bytes
+            DROP;       # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @storage : lambda nat bytes
+            DIG 5;      # lambda nat bytes : pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @storage
+            DROP;       # pair string (pair string (pair bytes (option (contract bytes)))) : mutez : @some : list operation : @storage
+            TRANSFER_TOKENS; # operation : list operation : @storage
+            CONS;       # list operation : @storage
+          }; # list operation : @storage
+      }
+      {
+        DIG 2;      # lambda nat bytes : @parameter.right : @storage
+        DROP;       # @parameter.right : @storage
+        IF_LEFT
+          {
+            # == force_fail ==
+            # raise reason
+            # failwith # @parameter%force_fail : @storage
+            FAILWITH;   # FAILED
+          }
+          {
+            IF_LEFT
+              {
+                SWAP;       # @storage : @parameter%record_ping
+                # == record_ping ==
+                # self.data.ping_count += 1 # @storage : @parameter%record_ping
+                DUP;        # @storage : @storage : @parameter%record_ping
+                GET 15;     # nat : @storage : @parameter%record_ping
+                PUSH nat 1; # nat : nat : @storage : @parameter%record_ping
+                ADD;        # nat : @storage : @parameter%record_ping
+                UPDATE 15;  # @storage : @parameter%record_ping
+                SWAP;       # @parameter%record_ping : @storage
+                # self.data.pings[self.data.ping_count] = sp.record( # @parameter%record_ping : @storage
+                DUP 2;      # @storage : @parameter%record_ping : @storage
+                DUP;        # @storage : @storage : @parameter%record_ping : @storage
+                GET 16;     # big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                AMOUNT;     # @amount : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                SOURCE;     # @source : @amount : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                SENDER;     # @sender : @source : @amount : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                DUP 6;      # @parameter%record_ping : @sender : @source : @amount : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                PAIR 4;     # pair @parameter%record_ping (pair @sender (pair @source @amount)) : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                SOME;       # option (pair @parameter%record_ping (pair @sender (pair @source @amount))) : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping : @storage
+                DIG 4;      # @storage : option (pair @parameter%record_ping (pair @sender (pair @source @amount))) : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping
+                GET 15;     # nat : option (pair @parameter%record_ping (pair @sender (pair @source @amount))) : big_map nat (pair (string %note) (pair (address %sender) (pair (address %source) (mutez %amount)))) : @storage : @parameter%record_ping
+                UPDATE;     # big_map nat (pair string (pair address (pair address mutez))) : @storage : @parameter%record_ping
+                UPDATE 16;  # @storage : @parameter%record_ping
+                SWAP;       # @parameter%record_ping : @storage
+                # self.data.last_note = note # @parameter%record_ping : @storage
+                UPDATE 7;   # @storage
+                # self.data.last_sender = sp.sender # @storage
+                SENDER;     # @sender : @storage
+                UPDATE 9;   # @storage
+                # self.data.last_source = sp.source # @storage
+                SOURCE;     # @source : @storage
+                UPDATE 11;  # @storage
+              }
+              {
+                # == set_paired_evm ==
+                # assert sp.sender == self.data.admin, "NOT_ADMIN" # @parameter%set_paired_evm : @storage
+                DUP 2;      # @storage : @parameter%set_paired_evm : @storage
+                CAR;        # address : @parameter%set_paired_evm : @storage
+                SENDER;     # @sender : address : @parameter%set_paired_evm : @storage
+                COMPARE;    # int : @parameter%set_paired_evm : @storage
+                EQ;         # bool : @parameter%set_paired_evm : @storage
+                IF
+                  {}
+                  {
+                    PUSH string "NOT_ADMIN"; # string : @parameter%set_paired_evm : @storage
+                    FAILWITH;   # FAILED
+                  }; # @parameter%set_paired_evm : @storage
+                # self.data.paired_evm_canary = evm_addr # @parameter%set_paired_evm : @storage
+                UPDATE 13;  # @storage
+              }; # @storage
+          }; # @storage
+        NIL operation; # list operation : @storage
+      }; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };
+view
+  "get_state_digest" nat (pair (nat %ping_count) (pair (nat %callback_count) (nat %echo)))
+  {
+    UNPAIR;     # @parameter : @storage
+    SWAP;       # @storage : @parameter
+    # return sp.cast( # @storage : @parameter
+    DUP;        # @storage : @storage : @parameter
+    GET 5;      # nat : @storage : @parameter
+    SWAP;       # @storage : nat : @parameter
+    GET 15;     # nat : nat : @parameter
+    PAIR 3;     # pair nat (pair nat @parameter)
+  };
+view
+  "probe_evm_staticcall" (pair (string %target) (bytes %calldata)) bytes
+  {
+    UNPAIR;     # @parameter : @storage
+    SWAP;       # @storage : @parameter
+    # return sp.view( # @storage : @parameter
+    GET 3;      # address : @parameter
+    SWAP;       # @parameter : address
+    VIEW "staticcall_evm" bytes; # option bytes
+    IF_NONE
+      {
+        PUSH string "STATICCALL_EVM_VIEW_FAILED"; # string
+        FAILWITH;   # FAILED
+      }
+      {}; # @some
+  };

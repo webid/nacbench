@@ -1,0 +1,1 @@
+sp.record(call_count = 0, has_callback = False, last_data = sp.bytes('0x'), last_destination = '', last_selector = '', last_sender = sp.address('tz1Ke2h7sDdakHJQh8WX4Z372du1KChsksyU'), staticcall_response = sp.bytes('0xdeadbeef'))

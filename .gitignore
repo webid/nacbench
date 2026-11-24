@@ -1,0 +1,28 @@
+# Secrets & local environment
+.env
+.env.*
+!.env.example
+
+# Local planning / internal audit drafts
+0[1-7]-*.md
+
+# Dependencies & builds
+node_modules/
+dist/
+apps/web/dist/
+*.log
+
+# Foundry build outputs (reproducible via `forge build`)
+contracts/evm/out/
+contracts/evm/cache/
+contracts/evm/broadcast/
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/

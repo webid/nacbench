@@ -1,0 +1,124 @@
+[
+  {
+    "prim": "storage",
+    "args": [
+      {
+        "prim": "pair",
+        "args": [
+          { "prim": "nat", "annots": [ "%call_count" ] },
+          {
+            "prim": "pair",
+            "args": [
+              { "prim": "bool", "annots": [ "%has_callback" ] },
+              {
+                "prim": "pair",
+                "args": [
+                  { "prim": "bytes", "annots": [ "%last_data" ] },
+                  {
+                    "prim": "pair",
+                    "args": [
+                      { "prim": "string", "annots": [ "%last_destination" ] },
+                      {
+                        "prim": "pair",
+                        "args": [
+                          { "prim": "string", "annots": [ "%last_selector" ] },
+                          { "prim": "pair", "args": [ { "prim": "address", "annots": [ "%last_sender" ] }, { "prim": "bytes", "annots": [ "%staticcall_response" ] } ] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "prim": "parameter",
+    "args": [
+      {
+        "prim": "pair",
+        "args": [
+          { "prim": "string", "annots": [ "%destination" ] },
+          {
+            "prim": "pair",
+            "args": [
+              { "prim": "string", "annots": [ "%selector" ] },
+              {
+                "prim": "pair",
+                "args": [
+                  { "prim": "bytes", "annots": [ "%data" ] }, { "prim": "option", "args": [ { "prim": "contract", "args": [ { "prim": "bytes" } ] } ], "annots": [ "%callback" ] }
+                ]
+              }
+            ]
+          }
+        ],
+        "annots": [ "%call_evm" ]
+      }
+    ]
+  },
+  {
+    "prim": "code",
+    "args": [
+      [
+        { "prim": "UNPAIR" },
+        { "prim": "SWAP" },
+        { "prim": "DUP" },
+        { "prim": "CAR" },
+        { "prim": "PUSH", "args": [ { "prim": "nat" }, { "int": "1" } ] },
+        { "prim": "ADD" },
+        { "prim": "UPDATE", "args": [ { "int": "1" } ] },
+        { "prim": "DUP", "args": [ { "int": "2" } ] },
+        { "prim": "CAR" },
+        { "prim": "UPDATE", "args": [ { "int": "7" } ] },
+        { "prim": "DUP", "args": [ { "int": "2" } ] },
+        { "prim": "GET", "args": [ { "int": "3" } ] },
+        { "prim": "UPDATE", "args": [ { "int": "9" } ] },
+        { "prim": "DUP", "args": [ { "int": "2" } ] },
+        { "prim": "GET", "args": [ { "int": "5" } ] },
+        { "prim": "UPDATE", "args": [ { "int": "5" } ] },
+        { "prim": "SWAP" },
+        { "prim": "GET", "args": [ { "int": "6" } ] },
+        {
+          "prim": "IF_NONE",
+          "args": [
+            [ { "prim": "PUSH", "args": [ { "prim": "bool" }, { "prim": "False" } ] } ],
+            [ { "prim": "DROP" }, { "prim": "PUSH", "args": [ { "prim": "bool" }, { "prim": "True" } ] } ]
+          ]
+        },
+        { "prim": "UPDATE", "args": [ { "int": "3" } ] },
+        { "prim": "SENDER" },
+        { "prim": "UPDATE", "args": [ { "int": "11" } ] },
+        { "prim": "NIL", "args": [ { "prim": "operation" } ] },
+        { "prim": "PAIR" }
+      ]
+    ]
+  },
+  {
+    "prim": "view",
+    "args": [
+      { "string": "staticcall_evm" },
+      { "prim": "pair", "args": [ { "prim": "string" }, { "prim": "bytes" } ] },
+      { "prim": "bytes" },
+      [
+        { "prim": "UNPAIR" },
+        { "prim": "UNPAIR" },
+        { "prim": "PUSH", "args": [ { "prim": "string" }, { "string": "" } ] },
+        { "prim": "COMPARE" },
+        { "prim": "NEQ" },
+        { "prim": "IF", "args": [ [], [ { "prim": "PUSH", "args": [ { "prim": "string" }, { "string": "EMPTY_TARGET" } ] }, { "prim": "FAILWITH" } ] ] },
+        { "prim": "PUSH", "args": [ { "prim": "nat" }, { "int": "4" } ] },
+        { "prim": "DUP", "args": [ { "int": "2" } ] },
+        { "prim": "SIZE" },
+        { "prim": "COMPARE" },
+        { "prim": "GE" },
+        { "prim": "IF", "args": [ [], [ { "prim": "PUSH", "args": [ { "prim": "string" }, { "string": "SHORT_CALLDATA" } ] }, { "prim": "FAILWITH" } ] ] },
+        { "prim": "SWAP" },
+        { "prim": "GET", "args": [ { "int": "12" } ] },
+        { "prim": "CONCAT" }
+      ]
+    ]
+  }
+]

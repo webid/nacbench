@@ -1,0 +1,133 @@
+{
+  "defaultNetwork": "previewnet",
+  "constants": {
+    "weiPerMutez": "1000000000000",
+    "nullCrossRuntimeSource": "tz1Ke2h7sDdakHJQh8WX4Z372du1KChsksyU",
+    "safeSingletonFactory": "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
+    "runtimeIds": {
+      "michelson": 0,
+      "evm": 1
+    },
+    "originKinds": {
+      "unknown": 0,
+      "native": 1,
+      "alias": 2
+    },
+    "resolutionKinds": {
+      "unresolved": 0,
+      "alias": 1
+    },
+    "nacRecommendedGas": {
+      "evmTransfer": 3000000,
+      "evmContractCall": 5000000
+    }
+  },
+  "networks": {
+    "previewnet": {
+      "name": "Tezos X Previewnet",
+      "kernelTrack": "v0.11 (Horus 8.0 RC)",
+      "verifiedAt": "2026-11-23T22:44:20.309Z",
+      "resetPolicy": "ephemeral",
+      "dashboardUrl": "https://previewnet.tezosx.nomadic-labs.com/",
+      "faucetUrl": "https://faucet.previewnet.tezosx.nomadic-labs.com",
+      "bridgeUrl": "https://bridge.previewnet.tezosx.nomadic-labs.com/",
+      "evm": {
+        "chainId": 128064,
+        "chainIdHex": "0x1f440",
+        "caip2": "eip155:128064",
+        "rpcUrl": "https://evm.previewnet.tezosx.nomadic-labs.com",
+        "explorerUrl": "https://blockscout.previewnet.tezosx.nomadic-labs.com",
+        "explorerApiUrl": "https://blockscout.previewnet.tezosx.nomadic-labs.com/api/v2",
+        "nacPrecompile": "0xff00000000000000000000000000000000000007",
+        "precompileExtcodesizeZero": true,
+        "recommendedGasCall": 5000000,
+        "recommendedGasTransfer": 3000000,
+        "debugTraceSupported": true
+      },
+      "michelson": {
+        "chainId": "NetXY2oPPzkxUW1",
+        "caip2": "tezos:NetXY2oPPzkxUW1",
+        "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+        "rpcUrl": "https://michelson.previewnet.tezosx.nomadic-labs.com",
+        "explorerUrl": "https://tzkt.previewnet.tezosx.nomadic-labs.com",
+        "evmGateway": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+        "hardGasLimitPerOperation": 660000,
+        "hardGasLimitPerBlock": 660000,
+        "hardStorageLimitPerOperation": 60000,
+        "costPerByteMutez": 1,
+        "maxOperationDataLength": 32768
+      },
+      "l1": {
+        "network": "shadownet",
+        "smartRollup": "sr1BvTT7tVNneG2TeP18sixq57TxsZELebLu",
+        "bridge": "KT1DUaf49SNALJRSB8R45TvEtgVi2xZnCh8B",
+        "delayedBridge": "KT1NVGmkSgJx4nkRSeVpQs8QvYRBZ58kewdS",
+        "ticketer": "KT1FcWeWiEC7Ve5JMdZpKyvaFdsJv7n4GFzi"
+      },
+      "retiredWrappers": {
+        "evmFa12": "0xff00000000000000000000000000000000000009",
+        "michelsonErc20": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVKvCChb"
+      }
+    },
+    "shadownet": {
+      "name": "Etherlink Shadownet Testnet",
+      "kernelTrack": "Ganesha 7.x / Horus 8.0",
+      "verifiedAt": null,
+      "resetPolicy": "long-lived-testnet",
+      "faucetUrl": "https://shadownet.faucet.etherlink.com/",
+      "evm": {
+        "chainId": 127823,
+        "chainIdHex": "0x1f34f",
+        "caip2": "eip155:127823",
+        "rpcUrl": "https://node.shadownet.etherlink.com",
+        "relayUrl": "https://relay.shadownet.etherlink.com",
+        "explorerUrl": "https://shadownet.explorer.etherlink.com",
+        "explorerApiUrl": "https://shadownet.explorer.etherlink.com/api/v2",
+        "nacPrecompile": "0xff00000000000000000000000000000000000007",
+        "precompileExtcodesizeZero": true,
+        "recommendedGasCall": 5000000,
+        "recommendedGasTransfer": 3000000,
+        "debugTraceSupported": null
+      },
+      "michelson": {
+        "chainId": "NetXtLrzvQDobza",
+        "caip2": "tezos:NetXtLrzvQDobza",
+        "rpcUrl": "https://michelson.etherlink.shadownet.octez.io",
+        "explorerUrl": "https://shadownet.etherlink.tzkt.io",
+        "explorerApiUrl": "https://api.shadownet.etherlink.tzkt.io/v1",
+        "evmGateway": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+        "hardGasLimitPerOperation": 660000
+      }
+    },
+    "mainnet": {
+      "name": "Etherlink Mainnet",
+      "kernelTrack": "Ganesha 7.3 -> Horus 8.0 (Nov 30, 2026)",
+      "verifiedAt": null,
+      "resetPolicy": "permanent",
+      "evm": {
+        "chainId": 42793,
+        "chainIdHex": "0xa729",
+        "caip2": "eip155:42793",
+        "rpcUrl": "https://node.mainnet.etherlink.com",
+        "relayUrl": "https://relay.mainnet.etherlink.com",
+        "explorerUrl": "https://explorer.etherlink.com",
+        "explorerApiUrl": "https://explorer.etherlink.com/api/v2",
+        "nacPrecompile": "0xff00000000000000000000000000000000000007",
+        "precompileExtcodesizeZero": true,
+        "recommendedGasCall": 5000000,
+        "recommendedGasTransfer": 3000000,
+        "debugTraceSupported": null
+      },
+      "michelson": {
+        "chainId": "NetXohUVN5QWR4f",
+        "caip2": "tezos:NetXohUVN5QWR4f",
+        "rpcUrl": "https://michelson.etherlink.mainnet.octez.io",
+        "legacyRpcUrl": "https://node.mainnet.etherlink.com/tezlink",
+        "explorerUrl": "https://etherlink.tzkt.io",
+        "explorerApiUrl": "https://api.etherlink.tzkt.io/v1",
+        "evmGateway": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+        "hardGasLimitPerOperation": 660000
+      }
+    }
+  }
+}

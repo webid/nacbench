@@ -1,0 +1,25 @@
+{
+  "prim": "Pair",
+  "args": [
+    { "int": "0" },
+    {
+      "prim": "Pair",
+      "args": [
+        { "prim": "False" },
+        {
+          "prim": "Pair",
+          "args": [
+            { "bytes": "" },
+            {
+              "prim": "Pair",
+              "args": [
+                { "string": "" },
+                { "prim": "Pair", "args": [ { "string": "" }, { "prim": "Pair", "args": [ { "string": "tz1Ke2h7sDdakHJQh8WX4Z372du1KChsksyU" }, { "bytes": "deadbeef" } ] } ] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

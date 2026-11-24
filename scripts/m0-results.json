@@ -1,0 +1,857 @@
+{
+  "executedAt": "2026-11-23T23:08:01.920Z",
+  "nodeVersion": "v20.20.2",
+  "endpoints": {
+    "EVM_RPC": "https://evm.previewnet.tezosx.nomadic-labs.com",
+    "MICHELSON_RPC": "https://michelson.previewnet.tezosx.nomadic-labs.com",
+    "BLOCKSCOUT_API": "https://blockscout.previewnet.tezosx.nomadic-labs.com/api/v2",
+    "TZKT_API": "https://tzkt.previewnet.tezosx.nomadic-labs.com/v1",
+    "DASHBOARD_URL": "https://previewnet.tezosx.nomadic-labs.com/"
+  },
+  "evm": {
+    "eth_chainId": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "0x1f440"
+    },
+    "eth_blockNumber": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "0x1d08c3"
+    },
+    "eth_blockNumberDecimal": 1902787,
+    "web3_clientVersion": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "octez-evm-node/octez-evm-node 0.69 (build: 0)-eb2dc44d/Unix/ocamlc.5.3.0"
+    },
+    "net_version": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "128064"
+    },
+    "tez_kernelVersion": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "30d6f6e14ebb5d4ce8ca0fa8089775dcba3a87c2"
+    },
+    "tez_kernelRootHash": {
+      "ok": true,
+      "httpStatus": 200,
+      "result": "0098890c787a228c5c170059915e99af5d991e9d37505148f3ddf1e66186ec84eb"
+    },
+    "codeChecks": {
+      "nacPrecompile": {
+        "address": "0xff00000000000000000000000000000000000007",
+        "ok": true,
+        "byteLength": 0,
+        "codePrefix": "0x",
+        "isEmpty": true
+      },
+      "safeSingletonFactory": {
+        "address": "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
+        "ok": true,
+        "byteLength": 0,
+        "codePrefix": "0x",
+        "isEmpty": true
+      },
+      "freeRoutePool_fromXpectAug30": {
+        "address": "0x0d9de5e5d943c6e5118140e49b56f496d7f47003",
+        "ok": true,
+        "byteLength": 22142,
+        "codePrefix": "0x608060405234801561001057600080fd5b50600436106101ae5760003560e01c",
+        "isEmpty": false
+      },
+      "retiredWrapperEvm_0xff09": {
+        "address": "0xff00000000000000000000000000000000000009",
+        "ok": true,
+        "byteLength": 0,
+        "codePrefix": "0x",
+        "isEmpty": true
+      },
+      "precompile_0xff06": {
+        "address": "0xff00000000000000000000000000000000000006",
+        "ok": true,
+        "byteLength": 0,
+        "codePrefix": "0x",
+        "isEmpty": true
+      }
+    },
+    "debug_traceTransaction": {
+      "sampleTxHash": "0x4139780ecc401d3282c7bdbf7b3279207de978d3aaa7580ceea104deee0a4d29",
+      "ok": true,
+      "topFrameKeys": [
+        "type",
+        "from",
+        "to",
+        "value",
+        "gas",
+        "gasUsed",
+        "input",
+        "output",
+        "calls"
+      ],
+      "type": "CALL",
+      "gasUsed": "0x5208",
+      "hasSubcalls": false
+    }
+  },
+  "michelson": {
+    "chain_id": {
+      "ok": true,
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "json": "NetXY2oPPzkxUW1"
+    },
+    "header": {
+      "ok": true,
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "json": {
+        "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+        "chain_id": "NetXY2oPPzkxUW1",
+        "hash": "BKyKEeeAQcHvD2WxcJYdHex73zQpFMKzZU6GhJb8TYHFUqtDoof",
+        "level": 1902788,
+        "proto": 1,
+        "predecessor": "BLZEFXP3yRzY9skwhouvnq3wunpaBSi37xSFFvVKDgY5TzfvLF5",
+        "timestamp": "2026-11-23T23:08:02Z",
+        "validation_pass": 4,
+        "operations_hash": "LLoZKi1iMzbeJrfrGWPFYmkLebcsha6vGskQ4rAXt2uMwQtBfRcjL",
+        "fitness": [
+          "02",
+          "001d08c4",
+          "",
+          "ffffffff",
+          "00000000"
+        ],
+        "context": "CoWb42qqDaU8Gr7ukJ7gjWcPYUgha5FxzH3TjgL45cbZor4MnFaX",
+        "payload_hash": "vh1g87ZG6scSYxKhspAUzprQVuLAyoa5qMBKcUfjgnQGnFb3dJcG",
+        "payload_round": 0,
+        "proof_of_work_nonce": "0000000000000000",
+        "liquidity_baking_toggle_vote": "pass",
+        "signature": "sigMzJ4GVAvXEd2RjsKGfG2H9QvqTSKCZsuB2KiHbZRGFz72XgF6KaKADznh674fQgBatxw3xdHqTtMHUZAGRprxy64wg1aq"
+      }
+    },
+    "protocols": {
+      "ok": true,
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "json": {
+        "protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
+        "next_protocol": "PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY"
+      }
+    },
+    "version": {
+      "ok": true,
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "json": {
+        "version": {
+          "major": 0,
+          "minor": 69,
+          "build": 0,
+          "additional_info": "release"
+        },
+        "network_version": {
+          "chain_name": "TEZOS_PREVIEWNET_TEZOSX_Chain_id (1507644015)",
+          "distributed_db_version": 0,
+          "p2p_version": 0
+        },
+        "commit_info": {
+          "commit_hash": "eb2dc44d19552b6c678b5b229934d51fd0ea9e41",
+          "commit_date": "2026-11-19 09:43:59 +0000"
+        }
+      }
+    },
+    "constantsSummary": {
+      "hard_gas_limit_per_operation": "660000",
+      "hard_gas_limit_per_block": "660000",
+      "hard_storage_limit_per_operation": "60000",
+      "cost_per_byte": "1",
+      "minimal_block_delay": "1",
+      "max_operation_data_length": 32768,
+      "michelson_maximum_type_size": 2001
+    },
+    "gatewayEntrypoints": {
+      "ok": true,
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "json": {
+        "entrypoints": {
+          "call": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "list",
+                "args": [
+                  {
+                    "prim": "pair",
+                    "args": [
+                      {
+                        "prim": "string"
+                      },
+                      {
+                        "prim": "string"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "prim": "bytes"
+              },
+              {
+                "prim": "nat"
+              },
+              {
+                "prim": "option",
+                "args": [
+                  {
+                    "prim": "contract",
+                    "args": [
+                      {
+                        "prim": "bytes"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "call_evm": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "bytes"
+              },
+              {
+                "prim": "option",
+                "args": [
+                  {
+                    "prim": "contract",
+                    "args": [
+                      {
+                        "prim": "bytes"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "collect_result": {
+            "prim": "bytes"
+          },
+          "materialize_alias": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "option",
+                "args": [
+                  {
+                    "prim": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "retiredWrapperKt1": {
+      "address": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVKvCChb",
+      "httpStatus": 404,
+      "ok": false
+    },
+    "gatewayScriptSummary": {
+      "parameter": {
+        "prim": "parameter",
+        "args": [
+          {
+            "prim": "or",
+            "args": [
+              {
+                "prim": "pair",
+                "args": [
+                  {
+                    "prim": "string"
+                  },
+                  {
+                    "prim": "list",
+                    "args": [
+                      {
+                        "prim": "pair",
+                        "args": [
+                          {
+                            "prim": "string"
+                          },
+                          {
+                            "prim": "string"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "prim": "bytes"
+                  },
+                  {
+                    "prim": "nat"
+                  },
+                  {
+                    "prim": "option",
+                    "args": [
+                      {
+                        "prim": "contract",
+                        "args": [
+                          {
+                            "prim": "bytes"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "annots": [
+                  "%call"
+                ]
+              },
+              {
+                "prim": "or",
+                "args": [
+                  {
+                    "prim": "pair",
+                    "args": [
+                      {
+                        "prim": "string"
+                      },
+                      {
+                        "prim": "string"
+                      },
+                      {
+                        "prim": "bytes"
+                      },
+                      {
+                        "prim": "option",
+                        "args": [
+                          {
+                            "prim": "contract",
+                            "args": [
+                              {
+                                "prim": "bytes"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ],
+                    "annots": [
+                      "%call_evm"
+                    ]
+                  },
+                  {
+                    "prim": "or",
+                    "args": [
+                      {
+                        "prim": "bytes",
+                        "annots": [
+                          "%collect_result"
+                        ]
+                      },
+                      {
+                        "prim": "pair",
+                        "args": [
+                          {
+                            "prim": "string"
+                          },
+                          {
+                            "prim": "string"
+                          },
+                          {
+                            "prim": "option",
+                            "args": [
+                              {
+                                "prim": "string"
+                              }
+                            ]
+                          }
+                        ],
+                        "annots": [
+                          "%materialize_alias"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "storageType": {
+        "prim": "storage",
+        "args": [
+          {
+            "prim": "unit"
+          }
+        ]
+      },
+      "views": [
+        {
+          "name": "originOf",
+          "inputType": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "nat"
+              }
+            ]
+          },
+          "outputType": {
+            "prim": "or",
+            "args": [
+              {
+                "prim": "unit"
+              },
+              {
+                "prim": "or",
+                "args": [
+                  {
+                    "prim": "nat"
+                  },
+                  {
+                    "prim": "pair",
+                    "args": [
+                      {
+                        "prim": "nat"
+                      },
+                      {
+                        "prim": "string"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "resolveAddress",
+          "inputType": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "nat"
+              },
+              {
+                "prim": "nat"
+              }
+            ]
+          },
+          "outputType": {
+            "prim": "option",
+            "args": [
+              {
+                "prim": "pair",
+                "args": [
+                  {
+                    "prim": "nat"
+                  },
+                  {
+                    "prim": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "staticcall_evm",
+          "inputType": {
+            "prim": "pair",
+            "args": [
+              {
+                "prim": "string"
+              },
+              {
+                "prim": "bytes"
+              }
+            ]
+          },
+          "outputType": {
+            "prim": "bytes"
+          }
+        }
+      ],
+      "rawStorage": {
+        "prim": "Unit"
+      }
+    },
+    "run_script_view_probe": {
+      "ok": true,
+      "httpStatus": 200,
+      "json": {
+        "data": {
+          "prim": "Right",
+          "args": [
+            {
+              "prim": "Left",
+              "args": [
+                {
+                  "int": "0"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "precompileProbes": {
+    "originOf": {
+      "tz1_alice": {
+        "addr": "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb",
+        "bySourceRuntime": {
+          "0": {
+            "ok": true,
+            "decoded": {
+              "kind": 1,
+              "homeRuntime": 0,
+              "nativeAddress": "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000024747a31565355723877774e684c417a656d706f6368356436684c5269546838436a636a6200000000000000000000000000000000000000000000000000000000"
+            }
+          },
+          "1": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      },
+      "kt1_gateway": {
+        "addr": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+        "bySourceRuntime": {
+          "0": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          },
+          "1": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      },
+      "evm_dead": {
+        "addr": "0x000000000000000000000000000000000000dEaD",
+        "bySourceRuntime": {
+          "0": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          },
+          "1": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      },
+      "evm_safe_factory": {
+        "addr": "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
+        "bySourceRuntime": {
+          "0": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          },
+          "1": {
+            "ok": true,
+            "decoded": {
+              "kind": 0,
+              "homeRuntime": 0,
+              "nativeAddress": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      }
+    },
+    "resolveAddress": {
+      "tz1_alice": {
+        "addr": "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb",
+        "pairs": {
+          "0_to_1": {
+            "ok": true,
+            "decoded": {
+              "classified": true,
+              "resolution": 1,
+              "translated": "0x3c0EE21DA093b0AA44c590BA0BB1883ef8080137",
+              "raw": "0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000002a30783363304545323144413039336230414134346335393042413042423138383365663830383031333700000000000000000000000000000000000000000000"
+            },
+            "aliasCode": "0x"
+          },
+          "1_to_0": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          }
+        }
+      },
+      "kt1_gateway": {
+        "addr": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+        "pairs": {
+          "0_to_1": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          },
+          "1_to_0": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          }
+        }
+      },
+      "evm_dead": {
+        "addr": "0x000000000000000000000000000000000000dEaD",
+        "pairs": {
+          "0_to_1": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          },
+          "1_to_0": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          }
+        }
+      },
+      "evm_safe_factory": {
+        "addr": "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
+        "pairs": {
+          "0_to_1": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          },
+          "1_to_0": {
+            "ok": true,
+            "decoded": {
+              "classified": false,
+              "resolution": 0,
+              "translated": "",
+              "raw": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "aliasCode": null
+          }
+        }
+      }
+    },
+    "candidateSelectors": {
+      "materializeAlias(string)": {
+        "selector": "0x4a9d8618",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(string,uint8)": {
+        "selector": "0x77c091ce",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(uint8,string)": {
+        "selector": "0x737841f9",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(string,string,string)": {
+        "selector": "0xbfe88b4b",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x6d6174657269616c697a65416c6961733a204e6174697665206164647265737320766572696669636174696f6e206572726f723a204d697373696e67207075626c6963206b6579"
+        }
+      },
+      "materializeAlias(uint8,string,string)": {
+        "selector": "0x9afdd358",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(string,uint8,string)": {
+        "selector": "0x0a103f2b",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(uint8,string,bytes)": {
+        "selector": "0x0ff7d4cb",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(string,string,bytes)": {
+        "selector": "0xf8852676",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "materializeAlias(string,uint8,bytes)": {
+        "selector": "0x40834086",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      },
+      "callMichelsonView(string,string,bytes)": {
+        "selector": "0x8326329c",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x43726f73732d72756e74696d652063616c6c206661696c656420776974682073746174757320343034204e6f7420466f756e643a2076696577202273746174696363616c6c5f65766d22206e6f7420666f756e64206f6e20636f6e747261637420436f6e74726163744b74314861736828224b5431386f444a4a4b584d4b6866453162537541504770393270596377564469717350772229"
+        }
+      },
+      "viewMichelson(string,string,bytes)": {
+        "selector": "0xa2d32871",
+        "ok": false,
+        "error": {
+          "code": -32003,
+          "message": "execution reverted",
+          "data": "0x696e76616c696420696e70757420656e636f64696e67"
+        }
+      }
+    }
+  },
+  "auxiliaryServices": {
+    "dashboard": {
+      "ok": true,
+      "httpStatus": 200,
+      "versionsFoundInPreview": []
+    },
+    "blockscoutStats": {
+      "ok": true,
+      "httpStatus": 200,
+      "totalBlocks": "1901798",
+      "totalTxs": "123840"
+    },
+    "blockscoutRecentTxsCount": 50,
+    "tzktHead": {
+      "ok": true,
+      "httpStatus": 200
+    },
+    "sampleUserKt1FromTzkt": null,
+    "tezosXWalletReachable": {
+      "ok": true,
+      "httpStatus": 200
+    },
+    "xdexFrontendReachable": {
+      "ok": true,
+      "httpStatus": 200
+    }
+  }
+}

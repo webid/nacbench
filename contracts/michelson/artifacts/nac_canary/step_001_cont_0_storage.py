@@ -1,0 +1,1 @@
+sp.record(admin = sp.address('tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb'), authorized_evm_gateway = sp.address('KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw'), callback_count = 0, last_note = '', last_sender = sp.address('tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb'), last_source = sp.address('tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb'), paired_evm_canary = '', ping_count = 0, pings = {})

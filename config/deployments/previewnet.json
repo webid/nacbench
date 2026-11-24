@@ -1,0 +1,39 @@
+{
+  "deployedAt": "2026-11-24T03:34:42.710Z",
+  "network": "previewnet",
+  "kernelTrack": "v0.11 (Horus 8.0 RC)",
+  "evmChainId": 128064,
+  "michelsonChainId": "NetXY2oPPzkxUW1",
+  "contracts": {
+    "nacCanaryEvm": "0xd6b843047210c2fbeb6b9b9073bcacb64bb68cf5",
+    "nacCanaryKt1": "KT1JcRVBhqTivsAbsrjS5BuKiYtmhjb6jn3Z",
+    "nacCanaryKt1EvmAlias": "0x9A15bA8206d7EB58DFD1B41f0Ac7C86C4aD0984F",
+    "nacPrecompile": "0xff00000000000000000000000000000000000007",
+    "michelsonGateway": "KT18oDJJKXMKhfE1bSuAPGp92pYcwVDiqsPw",
+    "pingsBigMapId": 2294
+  },
+  "proofTxs": {
+    "verifiedAt": "2026-11-24T04:28:56.360Z",
+    "probeWrite": "0x01803a6c71355cc9d7f1b8b95da528a653a8cd44afa5f551d216f946abd954ec",
+    "probeRoundTrip": "0xbab231c1152b4c1b0b2b52e1cb36bba43627813238e13e9709a228ea45607bb9",
+    "probeRollback": "0x072e2ee082b437f4988f90918baeeab9df95f609886618727eaefde2ce7f65e0",
+    "probeOogCatch": "0x374c8e36afa16c3948e7a358d833df1276ca66ceba435735b14261ec2e7dfbf3",
+    "probeOogPropagate": "0xe5a7cd16546756c360bd108505d6bfb2ee238381d8947bc4fa65b20df9202fd0"
+  },
+  "v011IdentityCheck": {
+    "originOfKt1": {
+      "ok": true,
+      "kind": 1,
+      "kindLabel": "Native",
+      "homeRuntime": 0,
+      "homeRuntimeLabel": "Michelson",
+      "nativeAddress": "KT1JcRVBhqTivsAbsrjS5BuKiYtmhjb6jn3Z"
+    },
+    "resolveKt1ToEvm": {
+      "ok": true,
+      "classified": true,
+      "resolution": 1,
+      "translated": "0x9A15bA8206d7EB58DFD1B41f0Ac7C86C4aD0984F"
+    }
+  }
+}

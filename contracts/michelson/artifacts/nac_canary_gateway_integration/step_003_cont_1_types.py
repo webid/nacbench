@@ -1,0 +1,6 @@
+import smartpy as sp
+
+tstorage = sp.record(admin = sp.address, authorized_evm_gateway = sp.address, callback_count = sp.nat, last_note = sp.string, last_sender = sp.address, last_source = sp.address, paired_evm_canary = sp.string, ping_count = sp.nat, pings = sp.big_map(sp.nat, sp.record(amount = sp.mutez, note = sp.string, sender = sp.address, source = sp.address).layout(("note", ("sender", ("source", "amount")))))).layout(("admin", ("authorized_evm_gateway", ("callback_count", ("last_note", ("last_sender", ("last_source", ("paired_evm_canary", ("ping_count", "pings")))))))))
+tparameter = sp.variant(burn_gas = sp.nat, echo_callback = sp.nat, force_fail = sp.string, record_ping = sp.string, set_paired_evm = sp.string).layout((("burn_gas", "echo_callback"), ("force_fail", ("record_ping", "set_paired_evm"))))
+tprivates = { "encode_u256": sp.lambda_(sp.nat, sp.bytes, with_storage="no-access", with_operations=False, with_exceptions=True, with_mutez_overflow=True, with_mutez_underflow=True) }
+tviews = { "get_state_digest": (sp.nat, sp.record(callback_count = sp.nat, echo = sp.nat, ping_count = sp.nat).layout(("ping_count", ("callback_count", "echo")))), "probe_evm_staticcall": (sp.record(calldata = sp.bytes, target = sp.string).layout(("target", "calldata")), sp.bytes) }

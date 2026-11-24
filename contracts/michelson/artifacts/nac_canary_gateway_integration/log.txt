@@ -1,0 +1,90 @@
+Creating contract KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1
+ -> (Pair 0 (Pair False (Pair 0x (Pair "" (Pair "" (Pair "tz1Ke2h7sDdakHJQh8WX4Z372du1KChsksyU" 0xdeadbeef))))))
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_storage.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_storage.json
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_storage.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_types.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_contract.tz contract MockGateway
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_002_cont_0_contract.json contract MockGateway
+Creating contract KT1Tezooo1zzSmartPyzzSTATiCzzzyfC8eF
+ -> (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1" (Pair 0 (Pair "" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "0x1111111111111111111111111111111111111111" (Pair 0 {}))))))))
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_storage.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_storage.json
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_storage.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_types.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_contract.tz contract NacCanary
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_003_cont_1_contract.json contract NacCanary
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_004_cont_1_params.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_004_cont_1_params.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_004_cont_1_params.json
+Executing echo_callback(0)...
+ -> (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1" (Pair 1 (Pair "" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "0x1111111111111111111111111111111111111111" (Pair 0 {}))))))))
+  + Transfer
+     params: sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'), callback = None)
+     amount: sp.tez(0)
+     to:     sp.contract(sp.record(callback = sp.option(sp.contract(sp.bytes)), data = sp.bytes, destination = sp.string, selector = sp.string).layout(("destination", ("selector", ("data", "callback")))), sp.address('KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1%call_evm')).open_some()
+Executing call_evm(sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'), callback = None))...
+ -> (Pair 1 (Pair False (Pair 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 (Pair "0x1111111111111111111111111111111111111111" (Pair "onMichelsonCallback(uint256,uint256)" (Pair "KT1Tezooo1zzSmartPyzzSTATiCzzzyfC8eF" 0xdeadbeef))))))
+Verifying sp.contract_data(1).callback_count == 1...
+ OK
+Verifying sp.contract_data(0).call_count == 1...
+ OK
+Verifying sp.contract_data(0).last_destination == '0x1111111111111111111111111111111111111111'...
+ OK
+Verifying sp.contract_data(0).last_selector == 'onMichelsonCallback(uint256,uint256)'...
+ OK
+Verifying sp.contract_data(0).has_callback == False...
+ OK
+Verifying sp.contract_data(0).last_sender == sp.address('KT1Tezooo1zzSmartPyzzSTATiCzzzyfC8eF')...
+ OK
+Verifying sp.contract_data(0).last_data == sp.bytes('0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001')...
+ OK
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_012_cont_1_params.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_012_cont_1_params.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_012_cont_1_params.json
+Executing echo_callback(42)...
+ -> (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1" (Pair 2 (Pair "" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "0x1111111111111111111111111111111111111111" (Pair 0 {}))))))))
+  + Transfer
+     params: sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0x000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000002'), callback = None)
+     amount: sp.tez(0)
+     to:     sp.contract(sp.record(callback = sp.option(sp.contract(sp.bytes)), data = sp.bytes, destination = sp.string, selector = sp.string).layout(("destination", ("selector", ("data", "callback")))), sp.address('KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1%call_evm')).open_some()
+Executing call_evm(sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0x000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000002'), callback = None))...
+ -> (Pair 2 (Pair False (Pair 0x000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000002 (Pair "0x1111111111111111111111111111111111111111" (Pair "onMichelsonCallback(uint256,uint256)" (Pair "KT1Tezooo1zzSmartPyzzSTATiCzzzyfC8eF" 0xdeadbeef))))))
+Verifying sp.contract_data(1).callback_count == 2...
+ OK
+Verifying sp.contract_data(0).call_count == 2...
+ OK
+Verifying sp.contract_data(0).last_data == sp.bytes('0x000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000002')...
+ OK
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_016_cont_1_params.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_016_cont_1_params.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_016_cont_1_params.json
+Executing echo_callback(115792089237316195423570985008687907853269984665640564039457584007913129639935)...
+ -> (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1" (Pair 3 (Pair "" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "tz1UyQDepgtUBnWjyzzonqeDwaiWoQzRKSP5" (Pair "0x1111111111111111111111111111111111111111" (Pair 0 {}))))))))
+  + Transfer
+     params: sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000003'), callback = None)
+     amount: sp.tez(0)
+     to:     sp.contract(sp.record(callback = sp.option(sp.contract(sp.bytes)), data = sp.bytes, destination = sp.string, selector = sp.string).layout(("destination", ("selector", ("data", "callback")))), sp.address('KT1TezoooozzSmartPyzzSTATiCzzzwwBFA1%call_evm')).open_some()
+Executing call_evm(sp.record(destination = '0x1111111111111111111111111111111111111111', selector = 'onMichelsonCallback(uint256,uint256)', data = sp.bytes('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000003'), callback = None))...
+ -> (Pair 3 (Pair False (Pair 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000003 (Pair "0x1111111111111111111111111111111111111111" (Pair "onMichelsonCallback(uint256,uint256)" (Pair "KT1Tezooo1zzSmartPyzzSTATiCzzzyfC8eF" 0xdeadbeef))))))
+Verifying sp.contract_data(1).callback_count == 3...
+ OK
+Verifying sp.contract_data(0).last_data == sp.bytes('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000003')...
+ OK
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_019_cont_1_params.py
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_019_cont_1_params.tz
+file contracts/michelson/artifacts/nac_canary_gateway_integration/step_019_cont_1_params.json
+Executing echo_callback(115792089237316195423570985008687907853269984665640564039457584007913129639936)...
+Expected error: 'UINT256_OVERFLOW'
+Verifying sp.contract_data(1).callback_count == 3...
+ OK
+Verifying sp.static_view(1, "get_state_digest", 77).ping_count == 0...
+ OK
+Verifying sp.static_view(1, "get_state_digest", 77).callback_count == 3...
+ OK
+Verifying sp.static_view(1, "get_state_digest", 77).echo == 77...
+ OK
+Verifying sp.static_view(1, "probe_evm_staticcall", sp.record(calldata = sp.bytes('0x123456780000000000000000000000000000000000000000000000000000000000000007'), target = '0x1111111111111111111111111111111111111111')) == (sp.bytes('0xdeadbeef') + sp.bytes('0x123456780000000000000000000000000000000000000000000000000000000000000007'))...
+ OK
+Verifying sp.is_failing(sp.static_view(1, "probe_evm_staticcall", sp.record(calldata = sp.bytes('0x123456780000000000000000000000000000000000000000000000000000000000000007'), target = '')))...
+ OK

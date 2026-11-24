@@ -1,0 +1,76 @@
+parameter (pair %call_evm (string %destination) (pair (string %selector) (pair (bytes %data) (option %callback (contract bytes)))));
+storage   (pair (nat %call_count) (pair (bool %has_callback) (pair (bytes %last_data) (pair (string %last_destination) (pair (string %last_selector) (pair (address %last_sender) (bytes %staticcall_response)))))));
+code
+  {
+    UNPAIR;     # @parameter : @storage
+    SWAP;       # @storage : @parameter
+    # == call_evm ==
+    # self.data.call_count += 1 # @storage : @parameter
+    DUP;        # @storage : @storage : @parameter
+    CAR;        # nat : @storage : @parameter
+    PUSH nat 1; # nat : nat : @storage : @parameter
+    ADD;        # nat : @storage : @parameter
+    UPDATE 1;   # @storage : @parameter
+    # self.data.last_destination = params.destination # @storage : @parameter
+    DUP 2;      # @parameter : @storage : @parameter
+    CAR;        # string : @storage : @parameter
+    UPDATE 7;   # @storage : @parameter
+    # self.data.last_selector = params.selector # @storage : @parameter
+    DUP 2;      # @parameter : @storage : @parameter
+    GET 3;      # string : @storage : @parameter
+    UPDATE 9;   # @storage : @parameter
+    # self.data.last_data = params.data # @storage : @parameter
+    DUP 2;      # @parameter : @storage : @parameter
+    GET 5;      # bytes : @storage : @parameter
+    UPDATE 5;   # @storage : @parameter
+    SWAP;       # @parameter : @storage
+    # self.data.has_callback = params.callback.is_some() # @parameter : @storage
+    GET 6;      # option (contract bytes) : @storage
+    IF_NONE
+      {
+        PUSH bool False; # bool : @storage
+      }
+      {
+        DROP;       # @storage
+        PUSH bool True; # bool : @storage
+      }; # bool : @storage
+    UPDATE 3;   # @storage
+    # self.data.last_sender = sp.sender # @storage
+    SENDER;     # @sender : @storage
+    UPDATE 11;  # @storage
+    NIL operation; # list operation : @storage
+    PAIR;       # pair (list operation) @storage
+  };
+view
+  "staticcall_evm" (pair string bytes) bytes
+  {
+    UNPAIR;     # @parameter : @storage
+    # (target, calldata) = params # @parameter : @storage
+    UNPAIR;     # string : bytes : @storage
+    # assert target != "", "EMPTY_TARGET" # string : bytes : @storage
+    PUSH string ""; # string : string : bytes : @storage
+    COMPARE;    # int : bytes : @storage
+    NEQ;        # bool : bytes : @storage
+    IF
+      {}
+      {
+        PUSH string "EMPTY_TARGET"; # string : bytes : @storage
+        FAILWITH;   # FAILED
+      }; # bytes : @storage
+    # assert sp.len(calldata) >= 4, "SHORT_CALLDATA" # bytes : @storage
+    PUSH nat 4; # nat : bytes : @storage
+    DUP 2;      # bytes : nat : bytes : @storage
+    SIZE;       # nat : nat : bytes : @storage
+    COMPARE;    # int : bytes : @storage
+    GE;         # bool : bytes : @storage
+    IF
+      {}
+      {
+        PUSH string "SHORT_CALLDATA"; # string : bytes : @storage
+        FAILWITH;   # FAILED
+      }; # bytes : @storage
+    SWAP;       # @storage : bytes
+    # return self.data.staticcall_response + calldata # @storage : bytes
+    GET 12;     # bytes : bytes
+    CONCAT;     # bytes
+  };

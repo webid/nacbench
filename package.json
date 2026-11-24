@@ -1,0 +1,26 @@
+{
+  "name": "nacbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NACBench — Live Tezos X NAC Workbench, Horus 8.0 Alias Materializer & Debugger",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "m0:verify": "node scripts/m0-verify-previewnet.mjs",
+    "scripts:test": "node --test scripts/lib/*.test.mjs",
+    "scripts:check": "node --check scripts/m0-verify-previewnet.mjs && node --check scripts/deploy-previewnet.mjs && node --check scripts/verify-canary.mjs && node --check scripts/generate-previewnet-wallets.mjs && node --check scripts/lib/micheline.mjs && node --check scripts/lib/blake2b.mjs && node --check scripts/lib/tezos-address.mjs && node --check scripts/lib/evm-abi.mjs && node --check scripts/lib/pinning.mjs && node --check scripts/lib/wallets.mjs",
+    "wallets:generate": "node scripts/generate-previewnet-wallets.mjs",
+    "contracts:evm:test": "forge test --root contracts/evm",
+    "contracts:michelson:test": "SMARTPY_OUTPUT_DIR=contracts/michelson/artifacts python3 contracts/michelson/src/nac_canary.py",
+    "deploy:previewnet": "node scripts/deploy-previewnet.mjs",
+    "deploy:vps": "bash scripts/deploy-vps.sh",
+    "verify:canary": "node scripts/verify-canary.mjs --read-only",
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build",
+    "web:test": "npm --prefix apps/web run test",
+    "web:typecheck": "npm --prefix apps/web run typecheck"
+  }
+}
