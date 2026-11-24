@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle,
   ArrowRight,
   Camera,
   Check,
-  CheckCircle2,
-  ChevronDown,
-  Copy,
+  ChevronRight,
   Database,
   ExternalLink,
   GitCompare,
-  Info,
-  KeyRound,
   Layers,
-  Link2,
   Loader2,
   Repeat,
   Search,
@@ -58,9 +52,21 @@ import {
 } from '../lib/wallets';
 import { DEFAULT_FIXTURES, SAFE_SINGLETON_FACTORY } from '../lib/networks';
 import { loadDefaultCanaryAddresses } from '../lib/canary';
+import {
+  CopyButton,
+  Progress,
+  RuntimePill,
+  StepTitle,
+  TabList,
+  TabPanel,
+  WalletNeedPill,
+  useCopy,
+  type ProgressState,
+} from './ui';
 
 type MaterializeTab = 'evm_precompile' | 'michelson_gateway';
 type BigMapKeyType = 'nat' | 'string' | 'address';
+type AliasStep = 'lookup' | 'materialize' | 'diff';
 
 interface TxLifecycleState {
   phase: 'idle' | 'switching' | 'signing' | 'submitted' | 'error';
@@ -127,89 +133,135 @@ function getCodeByteLength(hexCode: string | null): number {
 function SnapshotCard({
   snapshot,
   slotLabel,
-  accentClass,
+  hint,
 }: {
   snapshot: DualRuntimeSnapshot | null;
   slotLabel: string;
-  accentClass: 'panel-evm' | 'panel-michelson';
+  hint: string;
 }) {
   return (
-    <div className={`panel ${accentClass}`}>
-      <div className="panel-header">
-        <span className={`mono ${accentClass === 'panel-evm' ? 'text-evm' : 'text-michelson'}`} style={{ fontWeight: 700, fontSize: '12px' }}>
-          {slotLabel}
-        </span>
+    <div className="card-inset stack-sm">
+      <div className="row-between">
+        <span className="strong small">{slotLabel}</span>
         {snapshot ? (
-          <span className={`badge ${snapshot.blockSynced ? 'badge-ok' : 'badge-warn'}`}>
+          <span className={`pill pill-sm ${snapshot.blockSynced ? 'pill-ok' : 'pill-warn'}`}>
             {snapshot.blockSynced
-              ? `EVM #${snapshot.blockNumber.toLocaleString()} == Michelson #${snapshot.michelsonLevel.toLocaleString()}`
-              : `SKEW: EVM #${snapshot.blockNumber} ≠ Mich #${snapshot.michelsonLevel}`}
+              ? `Synced #${snapshot.blockNumber.toLocaleString()}`
+              : `Skew: EVM #${snapshot.blockNumber} ≠ Mich #${snapshot.michelsonLevel}`}
           </span>
         ) : (
-          <span className="badge badge-muted">Not captured</span>
+          <span className="pill pill-sm pill-muted">Not captured</span>
         )}
       </div>
 
-      <div className="panel-body stack-sm">
-        {!snapshot ? (
-          <p className="muted" style={{ margin: 0, fontSize: '12.5px' }}>
-            Capture a block-pinned dual-runtime snapshot to freeze EVM + Michelson state at identical block height.
-          </p>
-        ) : (
-          <>
-            <div className="mono muted" style={{ fontSize: '11.5px' }}>
-              Captured {new Date(snapshot.capturedAt).toLocaleTimeString()} · blockSynced:{' '}
-              <strong className={snapshot.blockSynced ? 'text-ok' : 'text-warn'}>
-                {String(snapshot.blockSynced)}
-              </strong>
-            </div>
+      {!snapshot ? (
+        <p className="field-hint" style={{ margin: 0 }}>
+          {hint}
+        </p>
+      ) : (
+        <>
+          <span className="mono muted xsmall">
+            Captured {new Date(snapshot.capturedAt).toLocaleTimeString()} · EVM #
+            {snapshot.blockNumber.toLocaleString()} / Michelson #
+            {snapshot.michelsonLevel.toLocaleString()}
+          </span>
 
-            <div className="kv-grid">
-              {snapshot.evmAddress && (
-                <div className="kv-item" style={{ borderColor: 'var(--evm-border)' }}>
-                  <span className="kv-label text-evm">EVM Balance &amp; Code</span>
-                  <span className="kv-value">{weiToXtzString(snapshot.evmBalanceWei)}</span>
-                  <span className="mono muted" style={{ fontSize: '11px', wordBreak: 'break-all' }}>
-                    {snapshot.evmBalanceWei ?? '—'} wei · {snapshot.evmCodeBytes ?? 0} B
-                  </span>
-                </div>
-              )}
-
-              {snapshot.michelsonAddress && (
-                <div className="kv-item" style={{ borderColor: 'var(--michelson-border)' }}>
-                  <span className="kv-label text-michelson">Michelson Balance</span>
-                  <span className="kv-value">{mutezToXtzString(snapshot.michelsonBalanceMutez)}</span>
-                  <span className="mono muted" style={{ fontSize: '11px', wordBreak: 'break-all' }}>
-                    {snapshot.michelsonBalanceMutez ?? '—'} mutez
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {snapshot.michelsonStorage !== undefined && (
-              <div className="stack-sm">
-                <span className="field-label">Michelson Contract Storage</span>
-                <pre className="code-block pre" style={{ maxHeight: '130px', overflowY: 'auto' }}>
-                  {JSON.stringify(snapshot.michelsonStorage, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            {snapshot.bigMapId !== undefined && (
-              <div className="stack-sm">
-                <span className="field-label">
-                  Big-Map #{snapshot.bigMapId} · {snapshot.bigMapKeyHash ?? 'expr…'}
+          <div className="kv-grid">
+            {snapshot.evmAddress && (
+              <div className="kv-item">
+                <span className="kv-label row" style={{ gap: 6 }}>
+                  <RuntimePill runtime="evm" small /> Balance &amp; code
                 </span>
-                <pre className="code-block pre" style={{ maxHeight: '110px', overflowY: 'auto' }}>
-                  {snapshot.bigMapValue !== undefined
-                    ? JSON.stringify(snapshot.bigMapValue, null, 2)
-                    : 'null (key absent at pinned block)'}
-                </pre>
+                <span className="kv-value">{weiToXtzString(snapshot.evmBalanceWei)}</span>
+                <span className="mono muted xsmall break-all">
+                  {snapshot.evmBalanceWei ?? '—'} wei · {snapshot.evmCodeBytes ?? 0} B
+                </span>
               </div>
             )}
-          </>
+
+            {snapshot.michelsonAddress && (
+              <div className="kv-item">
+                <span className="kv-label row" style={{ gap: 6 }}>
+                  <RuntimePill runtime="michelson" small /> Balance
+                </span>
+                <span className="kv-value">{mutezToXtzString(snapshot.michelsonBalanceMutez)}</span>
+                <span className="mono muted xsmall break-all">
+                  {snapshot.michelsonBalanceMutez ?? '—'} mutez
+                </span>
+              </div>
+            )}
+          </div>
+
+          {snapshot.michelsonStorage !== undefined && (
+            <div className="stack-xs">
+              <span className="kv-label">Michelson contract storage</span>
+              <pre className="code-block pre" style={{ maxHeight: 140 }}>
+                {JSON.stringify(snapshot.michelsonStorage, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {snapshot.bigMapId !== undefined && (
+            <div className="stack-xs">
+              <span className="kv-label break-all">
+                Big-map #{snapshot.bigMapId} · {snapshot.bigMapKeyHash ?? 'expr…'}
+              </span>
+              <pre className="code-block pre" style={{ maxHeight: 120 }}>
+                {snapshot.bigMapValue !== undefined
+                  ? JSON.stringify(snapshot.bigMapValue, null, 2)
+                  : 'null (key absent at pinned block)'}
+              </pre>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AddressCard({
+  label,
+  runtime,
+  address,
+  explorerUrl,
+  copied,
+  onCopy,
+  children,
+}: {
+  label: string;
+  runtime: 'evm' | 'michelson';
+  address: string | null;
+  explorerUrl: string | null;
+  copied: boolean;
+  onCopy: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="kv-item" style={{ gap: 6 }}>
+      <div className="row-between">
+        <span className="kv-label row" style={{ gap: 6 }}>
+          {label} <RuntimePill runtime={runtime} small />
+        </span>
+        {address && (
+          <div className="row" style={{ gap: 4 }}>
+            <CopyButton iconOnly label={`Copy ${label.toLowerCase()} address`} copied={copied} onClick={onCopy} />
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm btn-icon"
+                title="Open in explorer"
+                aria-label={`Open ${label.toLowerCase()} address in explorer`}
+              >
+                <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            )}
+          </div>
         )}
       </div>
+      <span className="kv-value">{address ?? 'Unresolved'}</span>
+      {children}
     </div>
   );
 }
@@ -230,10 +282,11 @@ export function AliasInspectorModule({
   onAddrChange?: (addr: string) => void;
 }) {
   const uid = useId();
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copiedKey, copy: handleCopy } = useCopy();
   const autoRanInitialAddrRef = useRef(false);
+  const [step, setStep] = useState<AliasStep>('lookup');
 
-  // Panel A: Identity Inspector state
+  // Step 1: Identity Inspector state
   const [inspectInput, setInspectInput] = useState<string>(
     initialAddr?.trim() || DEFAULT_FIXTURES.aliceTz1,
   );
@@ -241,13 +294,13 @@ export function AliasInspectorModule({
   const [identityReport, setIdentityReport] = useState<IdentityReport | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
 
-  // Panel B: Materializer state
+  // Step 2: Materializer state
   const [materializeTab, setMaterializeTab] = useState<MaterializeTab>('evm_precompile');
   const [matTzAddress, setMatTzAddress] = useState<string>(DEFAULT_FIXTURES.aliceTz1);
   const [matPublicKey, setMatPublicKey] = useState<string>(DEFAULT_FIXTURES.alicePubKey);
   const [txState, setTxState] = useState<TxLifecycleState>({ phase: 'idle' });
 
-  // Panel C: Block-Pinned Dual-Runtime State-Diff state
+  // Step 3: Block-Pinned Dual-Runtime State-Diff state
   const [diffEvmAddr, setDiffEvmAddr] = useState<string>(DEFAULT_FIXTURES.freeRoutePoolEvm);
   const [diffMichAddr, setDiffMichAddr] = useState<string>(network.michelson.evmGateway);
   const [diffBigMapId, setDiffBigMapId] = useState<string>('');
@@ -258,30 +311,11 @@ export function AliasInspectorModule({
   const [snapshotA, setSnapshotA] = useState<DualRuntimeSnapshot | null>(null);
   const [snapshotB, setSnapshotB] = useState<DualRuntimeSnapshot | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
-
-  const handleCopy = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    setCopiedKey(key);
-    window.setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 1800);
-  };
+  const [probeOpen, setProbeOpen] = useState<boolean>(false);
 
   const trimmedInspect = inspectInput.trim();
   const inspectIsTz4 = isTz4Address(trimmedInspect);
-  const inspectIsValid =
-    isValidEvmAddress(trimmedInspect) || isValidTezosXAddress(trimmedInspect);
+  const inspectIsValid = isValidEvmAddress(trimmedInspect) || isValidTezosXAddress(trimmedInspect);
 
   const runInspection = useCallback(
     async (targetAddr?: string) => {
@@ -322,7 +356,7 @@ export function AliasInspectorModule({
     }
   }, [initialAddr, runInspection]);
 
-  // Panel B computed calldata & CLI/SDK snippets
+  // Step 2 computed calldata & CLI/SDK snippets
   const matTzTrimmed = matTzAddress.trim();
   const matPubTrimmed = matPublicKey.trim();
   const matIsTz4 = isTz4Address(matTzTrimmed);
@@ -406,12 +440,7 @@ export function AliasInspectorModule({
       }
 
       setTxState({ phase: 'signing' });
-      const txHash = await sendMaterializeAliasEvmTx(
-        provider,
-        network,
-        matTzTrimmed,
-        matPubTrimmed,
-      );
+      const txHash = await sendMaterializeAliasEvmTx(provider, network, matTzTrimmed, matPubTrimmed);
       setTxState({ phase: 'submitted', txHash });
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : String(err);
@@ -424,7 +453,7 @@ export function AliasInspectorModule({
     }
   };
 
-  // Panel C: live BLAKE2b expr hash preview
+  // Step 3: live BLAKE2b expr hash preview
   const liveBigMapHash = useMemo(() => {
     const keyVal = diffBigMapKey.trim();
     if (!keyVal) return null;
@@ -512,1091 +541,1070 @@ export function AliasInspectorModule({
     ? getExplorerAddressUrl(network, identityReport.input)
     : null;
 
-  const isEvmOriginReport =
-    identityReport?.homeRuntime === 1 || identityReport?.inferredRuntime === 1;
   const aliasByteLen = getCodeByteLength(identityReport?.aliasCode ?? null);
+  const inputRuntime: 'evm' | 'michelson' =
+    identityReport?.inferredRuntime === 1 ? 'evm' : 'michelson';
+  const translatedRuntime: 'evm' | 'michelson' = inputRuntime === 'evm' ? 'michelson' : 'evm';
+  const canMaterializeReported =
+    identityReport?.isMaterialized === false && /^tz[123]/.test(identityReport.input);
+
+  const canaryAddrs = loadDefaultCanaryAddresses(network.id);
+  const canaryBigMapId =
+    canaryAddrs.source === 'unconfigured' ? null : String(canaryAddrs.pingsBigMapId ?? 2294);
+
+  const loadIntoMaterializer = (tzAddr: string) => {
+    setMatTzAddress(tzAddr);
+    if (tzAddr === DEFAULT_FIXTURES.aliceTz1) {
+      setMatPublicKey(DEFAULT_FIXTURES.alicePubKey);
+    }
+    setTxState({ phase: 'idle' });
+    setMaterializeTab('evm_precompile');
+    setStep('materialize');
+  };
+
+  const txBusy = txState.phase === 'switching' || txState.phase === 'signing';
+  const txProgress: { label: string; state: ProgressState }[] = [
+    { label: 'Ready', state: txState.phase === 'idle' ? 'active' : 'done' },
+    {
+      label: txState.phase === 'switching' ? 'Switching chain' : 'Sign in wallet',
+      state:
+        txState.phase === 'switching' || txState.phase === 'signing'
+          ? 'active'
+          : txState.phase === 'submitted'
+            ? 'done'
+            : txState.phase === 'error'
+              ? 'error'
+              : 'todo',
+    },
+    { label: 'Submitted', state: txState.phase === 'submitted' ? 'done' : 'todo' },
+  ];
+
+  const stepPrefix = `${uid}-step`;
+  const matPrefix = `${uid}-mat`;
+  const snapshotsCaptured = Number(Boolean(snapshotA)) + Number(Boolean(snapshotB));
 
   return (
     <section aria-labelledby={`${uid}-module-title`} className="stack">
-      {/* Module Header */}
-      <div className="panel panel-michelson">
-        <div className="panel-header">
-          <div>
-            <h2 id={`${uid}-module-title`} className="panel-title">
-              <KeyRound size={16} className="text-michelson" aria-hidden="true" />
-              Module 2 · Horus 8.0 Alias Inspector, Materializer &amp; Block-Pinned State Diff
-            </h2>
-            <p className="panel-subtitle">
-              Live dual-runtime RPC telemetry against{' '}
-              <strong style={{ color: 'var(--text-strong)' }}>{network.label}</strong>: query{' '}
-              <code className="mono">originOf</code> / <code className="mono">resolveAddress</code>,
-              execute <code className="mono">0xbfe88b4b</code> /{' '}
-              <code className="mono">%materialize_alias</code>, and diff EVM + Michelson state at
-              identical block height.
-            </p>
-          </div>
-          <div className="row">
-            {health ? (
-              <span className={`badge ${health.synced ? 'badge-ok' : 'badge-warn'}`}>
-                {health.synced && health.evmHead !== null
-                  ? `SYNCED 1:1 · #${health.evmHead.toLocaleString()}`
-                  : `EVM #${health.evmHead ?? '?'} / MICH #${health.michelsonLevel ?? '?'}`}
-              </span>
-            ) : (
-              <span className="badge badge-muted">RPC Target: {network.id}</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <h2 id={`${uid}-module-title`} className="sr-only">
+        Module 2 · Alias &amp; State Diff
+      </h2>
 
-      {/* PANEL A: Horus 8.0 Identity & Safe-CREATE2 Alias Inspector */}
-      <div className="panel">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <Search size={15} className="text-michelson" aria-hidden="true" />
-            Panel A · Horus 8.0 Identity &amp; Safe-CREATE2 Alias Inspector
-          </h3>
-          <div className="row" style={{ gap: '6px' }}>
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={!inspectInput.trim()}
-              onClick={() => {
-                const url = `${window.location.origin}${window.location.pathname}?network=${network.id}&tab=alias&addr=${encodeURIComponent(inspectInput.trim())}`;
-                void handleCopy('share-alias', url);
-              }}
-            >
-              {copiedKey === 'share-alias' ? <Check size={12} /> : <Link2 size={12} />}
-              {copiedKey === 'share-alias' ? 'Link Copied' : 'Copy Share Link'}
-            </button>
-            <span className="badge badge-muted">
-              0xff00…0007 originOf + resolveAddress + eth_getCode
-            </span>
-          </div>
-        </div>
+      <TabList<AliasStep>
+        idPrefix={stepPrefix}
+        ariaLabel="Alias workflow steps"
+        className="stepper"
+        itemClassName="stepper-item"
+        value={step}
+        onChange={setStep}
+        items={[
+          {
+            id: 'lookup',
+            done: Boolean(identityReport),
+            label: (
+              <>
+                <span className="step-num" aria-hidden="true">
+                  {identityReport ? <Check size={12} /> : 1}
+                </span>
+                <span className="stepper-text">
+                  <span className="stepper-title">Lookup identity</span>
+                  <span className="stepper-sub">
+                    {identityReport
+                      ? identityReport.isMaterialized === false
+                        ? 'Alias not materialized'
+                        : identityReport.isMaterialized
+                          ? 'Alias materialized'
+                          : identityReport.kindLabel
+                      : 'originOf · resolveAddress · no wallet'}
+                  </span>
+                </span>
+              </>
+            ),
+          },
+          {
+            id: 'materialize',
+            done: txState.phase === 'submitted',
+            label: (
+              <>
+                <span className="step-num" aria-hidden="true">
+                  {txState.phase === 'submitted' ? <Check size={12} /> : 2}
+                </span>
+                <span className="stepper-text">
+                  <span className="stepper-title">Materialize alias</span>
+                  <span className="stepper-sub">
+                    {txState.phase === 'submitted'
+                      ? 'Transaction submitted'
+                      : '0xbfe88b4b · wallet to send, CLI free'}
+                  </span>
+                </span>
+              </>
+            ),
+          },
+          {
+            id: 'diff',
+            done: Boolean(computedDiff),
+            label: (
+              <>
+                <span className="step-num" aria-hidden="true">
+                  {computedDiff ? <Check size={12} /> : 3}
+                </span>
+                <span className="stepper-text">
+                  <span className="stepper-title">Block-pinned state diff</span>
+                  <span className="stepper-sub">
+                    {snapshotsCaptured}/2 snapshots · no wallet
+                  </span>
+                </span>
+              </>
+            ),
+          },
+        ]}
+      />
 
-        <div className="panel-body stack">
-          {/* 1-Click Fixtures */}
-          <div className="row" style={{ gap: '6px' }}>
-            <span className="mono muted" style={{ fontSize: '11px', marginRight: '4px' }}>
-              FIXTURES:
-            </span>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setInspectInput(DEFAULT_FIXTURES.aliceTz1);
-                void runInspection(DEFAULT_FIXTURES.aliceTz1);
-              }}
-            >
-              Alice <span className="mono text-michelson">tz1VSUr…</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setInspectInput(network.michelson.evmGateway);
-                void runInspection(network.michelson.evmGateway);
-              }}
-            >
-              Gateway <span className="mono text-michelson">KT18oDJJKX…</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setInspectInput(DEFAULT_FIXTURES.freeRoutePoolEvm);
-                void runInspection(DEFAULT_FIXTURES.freeRoutePoolEvm);
-              }}
-            >
-              Free-Route Pool <span className="mono text-evm">0x0d9d…</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger"
-              onClick={() => {
-                setInspectInput(DEFAULT_FIXTURES.sampleTz4Rejected);
-                setIdentityReport(null);
-                setInspectError(null);
-              }}
-            >
-              Test tz4 Rejection
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${evmWallet.address ? 'btn-evm' : ''}`}
-              onClick={async () => {
-                if (evmWallet.address) {
-                  setInspectInput(evmWallet.address);
-                  await runInspection(evmWallet.address);
-                } else {
-                  await onConnectEvm();
+      {/* ===================== STEP 1 · LOOKUP ===================== */}
+      {step === 'lookup' && (
+        <TabPanel idPrefix={stepPrefix} id="lookup">
+          <div className="card">
+            <div className="card-header">
+              <StepTitle
+                n={1}
+                title="Lookup cross-runtime identity"
+                hint={
+                  <>
+                    Resolve any tz1/tz2/tz3, KT1 or 0x address via <code>originOf</code> +{' '}
+                    <code>resolveAddress</code> on {network.label}.
+                  </>
                 }
-              }}
-            >
-              <Wallet size={12} aria-hidden="true" />
-              {evmWallet.address
-                ? `Use Connected EVM (${evmWallet.address.slice(0, 6)}…${evmWallet.address.slice(-4)})`
-                : 'Use Connected EVM Wallet'}
-            </button>
-          </div>
-
-          {/* Live Query Form */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void runInspection();
-            }}
-            className="row"
-            style={{ alignItems: 'stretch' }}
-          >
-            <label
-              htmlFor={`${uid}-inspect-addr`}
-              style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
-            >
-              Tezos or EVM address to inspect
-            </label>
-            <input
-              id={`${uid}-inspect-addr`}
-              className="input mono"
-              style={{ flex: '1 1 320px' }}
-              value={inspectInput}
-              onChange={(e) => setInspectInput(e.target.value)}
-              placeholder="Enter tz1 / tz2 / tz3, KT1, or 0x address..."
-              spellCheck={false}
-            />
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={inspecting || inspectIsTz4 || !trimmedInspect}
-              style={{ minWidth: '148px' }}
-            >
-              {inspecting ? (
-                <>
-                  <Loader2 size={14} aria-hidden="true" />
-                  Querying RPC…
-                </>
-              ) : (
-                <>
-                  <Search size={14} aria-hidden="true" />
-                  Inspect Live
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Explicit tz4 Rejection Banner */}
-          {inspectIsTz4 && (
-            <div role="alert" className="alert alert-danger">
-              <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
-              <div className="stack-sm" style={{ gap: '4px' }}>
-                <strong style={{ color: 'var(--danger)' }}>
-                  Unsupported Address Type: BLS12-381 (<code className="mono">tz4</code>) Rejected
-                </strong>
-                <span>
-                  Tezos X&apos;s Michelson runtime interface and Horus 8.0 Safe-CREATE2 alias
-                  derivation do not support BLS <code className="mono">tz4</code> implicit accounts
-                  yet. Use <code className="mono">tz1</code> (Ed25519),{' '}
-                  <code className="mono">tz2</code> (secp256k1), <code className="mono">tz3</code>{' '}
-                  (P-256), <code className="mono">KT1</code> smart contracts, or{' '}
-                  <code className="mono">0x</code> EVM addresses.
-                </span>
-              </div>
+              />
+              <CopyButton
+                label="Copy share link"
+                copiedLabel="Link copied"
+                copied={copiedKey === 'share-alias'}
+                disabled={!inspectInput.trim()}
+                onClick={() => {
+                  const url = `${window.location.origin}${window.location.pathname}?network=${network.id}&tab=alias&addr=${encodeURIComponent(inspectInput.trim())}`;
+                  void handleCopy('share-alias', url);
+                }}
+              />
             </div>
-          )}
 
-          {!inspectIsTz4 && trimmedInspect && !inspectIsValid && (
-            <span className="field-hint text-warn">
-              Unrecognized address format — expected 36-char <code className="mono">tz1/2/3</code>/
-              <code className="mono">KT1</code> or 42-char <code className="mono">0x</code> hex
-              address.
-            </span>
-          )}
-
-          {inspectError && !inspectIsTz4 && (
-            <div role="alert" className="alert alert-danger">
-              <XCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
-              <span>
-                <strong>RPC Inspection Error:</strong> {inspectError}
-              </span>
-            </div>
-          )}
-
-          {/* Dual-Runtime Identity Result */}
-          {identityReport && (
-            <div
-              aria-live="polite"
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-strong)',
-              }}
-              className="stack"
-            >
-              <div className="row" style={{ gap: '6px' }}>
-                <span className={`badge ${isEvmOriginReport ? 'badge-evm' : 'badge-michelson'}`}>
-                  ORIGIN: {identityReport.homeRuntime ?? identityReport.inferredRuntime} ={' '}
-                  {identityReport.homeRuntimeLabel}
-                </span>
-                <span
-                  className={`badge ${
-                    identityReport.kind === 1
-                      ? 'badge-ok'
-                      : identityReport.kind === 2
-                        ? 'badge-evm'
-                        : 'badge-muted'
-                  }`}
-                >
-                  CLASSIFICATION: {identityReport.kindLabel} (kind={identityReport.kind})
-                </span>
-                {identityReport.isMaterialized !== null && (
-                  <span
-                    className={`badge ${identityReport.isMaterialized ? 'badge-ok' : 'badge-warn'}`}
+            <div className="card-body stack">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void runInspection();
+                }}
+                className="stack-sm"
+              >
+                <label htmlFor={`${uid}-inspect-addr`} className="field-label">
+                  Address to inspect
+                </label>
+                <div className="input-row">
+                  <input
+                    id={`${uid}-inspect-addr`}
+                    className="input mono"
+                    value={inspectInput}
+                    onChange={(e) => setInspectInput(e.target.value)}
+                    placeholder="tz1 / tz2 / tz3, KT1, or 0x address…"
+                    spellCheck={false}
+                    aria-invalid={inspectIsTz4 || (!!trimmedInspect && !inspectIsValid)}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={inspecting || inspectIsTz4 || !trimmedInspect}
+                    style={{ minWidth: 132 }}
                   >
-                    {identityReport.isMaterialized
-                      ? `MATERIALIZED (${aliasByteLen.toLocaleString()} bytes)`
-                      : 'UNMATERIALIZED (0x)'}
-                  </span>
-                )}
-                <span className="badge badge-muted">
-                  resolution: {identityReport.resolutionLabel}
-                </span>
-              </div>
-
-              <div className="grid-2">
-                {/* Source Card */}
-                <div
-                  className="kv-item"
-                  style={{
-                    borderColor:
-                      identityReport.inferredRuntime === 1
-                        ? 'var(--evm-border)'
-                        : 'var(--michelson-border)',
-                    gap: '6px',
-                  }}
-                >
-                  <div className="row-between">
-                    <span
-                      className={`kv-label ${
-                        identityReport.inferredRuntime === 1 ? 'text-evm' : 'text-michelson'
-                      }`}
-                    >
-                      Inspected ({identityReport.inferredRuntime === 1 ? 'EVM = 1' : 'Michelson = 0'})
-                    </span>
-                    <div className="row" style={{ gap: '4px' }}>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => handleCopy('id-in', identityReport.input)}
-                      >
-                        {copiedKey === 'id-in' ? <Check size={11} /> : <Copy size={11} />}
-                      </button>
-                      {inputExplorerUrl && (
-                        <a
-                          href={inputExplorerUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn-sm"
-                          title="Open in Explorer"
-                        >
-                          <ExternalLink size={11} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <span className="kv-value">{identityReport.input}</span>
-                  {identityReport.nativeAddress &&
-                    identityReport.nativeAddress !== identityReport.input && (
-                      <span className="mono muted" style={{ fontSize: '11px', wordBreak: 'break-all' }}>
-                        Native home: {identityReport.nativeAddress}
-                      </span>
+                    {inspecting ? (
+                      <Loader2 size={14} className="spin" aria-hidden="true" />
+                    ) : (
+                      <Search size={14} aria-hidden="true" />
                     )}
+                    {inspecting ? 'Querying…' : 'Inspect live'}
+                  </button>
                 </div>
-
-                {/* Translated Cross-Runtime Card */}
-                <div
-                  className="kv-item"
-                  style={{
-                    borderColor:
-                      identityReport.inferredRuntime === 1
-                        ? 'var(--michelson-border)'
-                        : 'var(--evm-border)',
-                    gap: '6px',
-                  }}
-                >
-                  <div className="row-between">
-                    <span
-                      className={`kv-label ${
-                        identityReport.inferredRuntime === 1 ? 'text-michelson' : 'text-evm'
-                      }`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <ArrowRight size={11} aria-hidden="true" />
-                      Translated Alias ({identityReport.inferredRuntime === 1 ? 'Michelson = 0' : 'EVM = 1'})
-                    </span>
-                    {identityReport.translatedAddress && (
-                      <div className="row" style={{ gap: '4px' }}>
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() =>
-                            handleCopy('id-translated', identityReport.translatedAddress ?? '')
-                          }
-                        >
-                          {copiedKey === 'id-translated' ? <Check size={11} /> : <Copy size={11} />}
-                        </button>
-                        {translatedExplorerUrl && (
-                          <a
-                            href={translatedExplorerUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn btn-sm"
-                            title="Open Translated Alias in Explorer"
-                          >
-                            <ExternalLink size={11} />
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <span className="kv-value">{identityReport.translatedAddress ?? 'Unresolved'}</span>
-                  {identityReport.isMaterialized === false &&
-                    /^tz[123]/.test(identityReport.input) && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-evm"
-                        style={{ alignSelf: 'flex-start', marginTop: '2px' }}
-                        onClick={() => {
-                          setMatTzAddress(identityReport.input);
-                          if (identityReport.input === DEFAULT_FIXTURES.aliceTz1) {
-                            setMatPublicKey(DEFAULT_FIXTURES.alicePubKey);
-                          }
-                        }}
-                      >
-                        Load into Materializer (Panel B) ↓
-                      </button>
-                    )}
+                <div className="chip-row" role="group" aria-label="Address fixtures">
+                  <span className="chip-row-label">Try</span>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setInspectInput(DEFAULT_FIXTURES.aliceTz1);
+                      void runInspection(DEFAULT_FIXTURES.aliceTz1);
+                    }}
+                  >
+                    Alice <span className="chip-meta mono">tz1VSUr…</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setInspectInput(network.michelson.evmGateway);
+                      void runInspection(network.michelson.evmGateway);
+                    }}
+                  >
+                    Gateway <span className="chip-meta mono">KT18oDJJKX…</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setInspectInput(DEFAULT_FIXTURES.freeRoutePoolEvm);
+                      void runInspection(DEFAULT_FIXTURES.freeRoutePoolEvm);
+                    }}
+                  >
+                    Free-Route pool <span className="chip-meta mono">0x0d9d…</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setInspectInput(DEFAULT_FIXTURES.sampleTz4Rejected);
+                      setIdentityReport(null);
+                      setInspectError(null);
+                    }}
+                  >
+                    tz4 <span className="chip-meta">rejection test</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={async () => {
+                      if (evmWallet.address) {
+                        setInspectInput(evmWallet.address);
+                        await runInspection(evmWallet.address);
+                      } else {
+                        await onConnectEvm();
+                      }
+                    }}
+                  >
+                    <Wallet size={12} aria-hidden="true" />
+                    {evmWallet.address
+                      ? `My wallet (${evmWallet.address.slice(0, 6)}…${evmWallet.address.slice(-4)})`
+                      : 'Connect wallet to use mine'}
+                  </button>
                 </div>
-              </div>
+              </form>
 
-              {/* Horus 8.0 Alias & Safe Singleton Factory Note */}
-              <div className="alert alert-info" style={{ flexDirection: 'column', gap: '5px' }}>
-                <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--michelson)' }}>
-                  <Info size={14} aria-hidden="true" />
-                  Horus 8.0 Alias Semantics &amp; Safe-CREATE2 Note
-                </strong>
-                <span style={{ color: 'var(--text)' }}>{identityReport.aliasTypeNote}</span>
-                <span className="muted" style={{ fontSize: '12px' }}>
-                  <strong style={{ color: 'var(--text)' }}>Horus 8.0 rule:</strong> Implicit{' '}
-                  <code className="mono">tz1/tz2/tz3</code> accounts use Safe-CREATE2 derivation for
-                  cross-chain recovery on Ethereum/Arbitrum/Base, while{' '}
-                  <code className="mono">KT1</code> contracts retain Keccak-256 aliases. Safe
-                  Singleton Factory (<code className="mono">{SAFE_SINGLETON_FACTORY}</code>)
-                  intentionally returns <code className="mono">0x</code> (0 bytes) on Previewnet
-                  because it is only a deterministic cross-chain CREATE2 formula constant, not a
-                  deployed contract on Tezos X.
-                </span>
-              </div>
+              {inspectIsTz4 && (
+                <div role="alert" className="alert alert-danger">
+                  <ShieldAlert size={16} aria-hidden="true" />
+                  <div className="stack-xs">
+                    <strong className="strong">
+                      Unsupported address type: BLS12-381 (<code>tz4</code>) rejected
+                    </strong>
+                    <span>
+                      Tezos X&apos;s Michelson runtime interface and Horus 8.0 Safe-CREATE2 alias
+                      derivation do not support BLS <code>tz4</code> implicit accounts yet. Use{' '}
+                      <code>tz1</code> (Ed25519), <code>tz2</code> (secp256k1), <code>tz3</code>{' '}
+                      (P-256), <code>KT1</code> smart contracts, or <code>0x</code> EVM addresses.
+                    </span>
+                  </div>
+                </div>
+              )}
 
-              <details>
-                <summary
-                  className="mono muted"
-                  style={{ cursor: 'pointer', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                >
-                  <ChevronDown size={13} aria-hidden="true" />
-                  Raw Precompile Return Payloads (originOf / resolveAddress)
-                </summary>
-                <pre className="code-block" style={{ marginTop: '8px' }}>
-                  {`originOf:       ${identityReport.rawOriginHex || '—'}\nresolveAddress: ${identityReport.rawResolveHex || '—'}\naliasCode:      ${identityReport.aliasCode ?? '—'}`}
-                </pre>
-              </details>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* PANEL B: Horus 8.0 %materialize_alias / materializeAlias Executor */}
-      <div className="panel panel-evm">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <Send size={15} className="text-evm" aria-hidden="true" />
-            Panel B · Horus 8.0 Alias Materializer (
-            <code className="mono text-evm">0xbfe88b4b</code> &amp;{' '}
-            <code className="mono text-michelson">%materialize_alias</code>)
-          </h3>
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => {
-              setMatTzAddress(DEFAULT_FIXTURES.aliceTz1);
-              setMatPublicKey(DEFAULT_FIXTURES.alicePubKey);
-              setTxState({ phase: 'idle' });
-            }}
-          >
-            Fill Alice Fixture (tz1 + edpk)
-          </button>
-        </div>
-
-        <div className="panel-body stack">
-          <div className="grid-2">
-            <div className="field">
-              <label htmlFor={`${uid}-mat-tz`} className="field-label">
-                Native Tezos Implicit Account (tz1 / tz2 / tz3)
-              </label>
-              <input
-                id={`${uid}-mat-tz`}
-                className="input mono"
-                value={matTzAddress}
-                onChange={(e) => {
-                  setMatTzAddress(e.target.value);
-                  setTxState({ phase: 'idle' });
-                }}
-                placeholder="tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb"
-                spellCheck={false}
-              />
-              {matIsTz4 && (
-                <span role="alert" className="field-hint text-danger">
-                  BLS <code className="mono">tz4</code> is unsupported — cannot materialize on Tezos
-                  X.
+              {!inspectIsTz4 && trimmedInspect && !inspectIsValid && (
+                <span className="field-hint text-warn">
+                  Unrecognized address format — expected 36-char <code>tz1/2/3</code>/
+                  <code>KT1</code> or 42-char <code>0x</code> hex address.
                 </span>
               )}
-            </div>
 
-            <div className="field">
-              <label htmlFor={`${uid}-mat-pk`} className="field-label">
-                Tezos Public Key (edpk… / sppk… / p2pk…)
-              </label>
-              <input
-                id={`${uid}-mat-pk`}
-                className="input mono"
-                value={matPublicKey}
-                onChange={(e) => {
-                  setMatPublicKey(e.target.value);
-                  setTxState({ phase: 'idle' });
-                }}
-                placeholder="edpkvGfYw3LyB1UcCahKQk4rF2tvbMUk8GFiTuMjL75uGXrpvKXhjn"
-                spellCheck={false}
-              />
-              <span className="field-hint">
-                Verified live on v0.11: EVM precompile <code className="mono">0xbfe88b4b</code>{' '}
-                requires the matching public key (empty string reverts with{' '}
-                <code className="mono">Missing public key</code>).
-              </span>
-            </div>
-          </div>
-
-          <div className="subtabs" role="tablist" aria-label="Alias materialization runtime">
-            <button
-              type="button"
-              role="tab"
-              id={`${uid}-mat-tab-evm`}
-              aria-selected={materializeTab === 'evm_precompile'}
-              aria-controls={`${uid}-mat-panel-evm`}
-              className={`subtab ${materializeTab === 'evm_precompile' ? 'subtab-active' : ''}`}
-              onClick={() => setMaterializeTab('evm_precompile')}
-            >
-              EVM → Tezos Precompile (<code className="mono">0xbfe88b4b</code>)
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id={`${uid}-mat-tab-mich`}
-              aria-selected={materializeTab === 'michelson_gateway'}
-              aria-controls={`${uid}-mat-panel-mich`}
-              className={`subtab ${materializeTab === 'michelson_gateway' ? 'subtab-active' : ''}`}
-              onClick={() => setMaterializeTab('michelson_gateway')}
-            >
-              Michelson → EVM (<code className="mono">KT18oDJJKX… %materialize_alias</code>)
-            </button>
-          </div>
-
-          {materializeTab === 'evm_precompile' ? (
-            <div
-              id={`${uid}-mat-panel-evm`}
-              role="tabpanel"
-              aria-labelledby={`${uid}-mat-tab-evm`}
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-              }}
-              className="stack-sm"
-            >
-              <div className="row-between">
-                <div className="row" style={{ gap: '8px' }}>
-                  <span className="badge badge-evm">selector: 0xbfe88b4b</span>
-                  <span className="mono muted" style={{ fontSize: '11.5px' }}>
-                    materializeAlias(&quot;tezos&quot;, tzAddress, publicKey) → {network.evm.precompile}
+              {inspectError && !inspectIsTz4 && (
+                <div role="alert" className="alert alert-danger">
+                  <XCircle size={15} aria-hidden="true" />
+                  <span>
+                    <strong>RPC inspection error:</strong> {inspectError}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={!materializeCalldata}
-                  onClick={() => handleCopy('mat-calldata', materializeCalldata)}
-                >
-                  {copiedKey === 'mat-calldata' ? <Check size={12} /> : <Copy size={12} />}
-                  {copiedKey === 'mat-calldata' ? 'Copied' : 'Copy Calldata'}
-                </button>
-              </div>
+              )}
 
-              <pre className="code-block text-evm" style={{ maxHeight: '110px', overflowY: 'auto' }}>
-                {materializeCalldata ||
-                  'Enter a valid tz1/tz2/tz3 address to preview 0xbfe88b4b calldata.'}
-              </pre>
+              {!identityReport && !inspectError && !inspecting && !inspectIsTz4 && (
+                <p className="field-hint" style={{ margin: 0 }}>
+                  Results show the native runtime, classification, the translated alias on the
+                  other runtime, and whether that alias is materialized on-chain.
+                </p>
+              )}
 
-              <hr className="divider" style={{ margin: '4px 0' }} />
-
-              <div className="row-between">
-                <div className="stack-sm" style={{ gap: '3px' }}>
-                  {evmWallet.address ? (
-                    <>
-                      <span className="text-ok row" style={{ gap: '6px', fontSize: '12.5px' }}>
-                        <CheckCircle2 size={14} aria-hidden="true" />
-                        Connected: <code className="mono">{evmWallet.address}</code> (
-                        {evmWallet.providerName ?? 'EVM Wallet'})
+              {identityReport && (
+                <div aria-live="polite" className="stack">
+                  <div className="divider" />
+                  <div className="row" style={{ gap: 6 }}>
+                    <span className="pill">
+                      Origin <RuntimePill runtime={identityReport.homeRuntime === 1 || identityReport.inferredRuntime === 1 ? 'evm' : 'michelson'} small />
+                      <span className="mono muted">
+                        {identityReport.homeRuntime ?? identityReport.inferredRuntime} ={' '}
+                        {identityReport.homeRuntimeLabel}
                       </span>
-                      {evmWallet.chainId !== null && evmWallet.chainId !== network.evm.chainId && (
-                        <span className="text-warn row" style={{ gap: '5px', fontSize: '12px' }}>
-                          <AlertTriangle size={13} aria-hidden="true" />
-                          Wallet on chain {evmWallet.chainId}; will switch to {network.label} (
-                          {network.evm.chainId}) before sending.
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="muted" style={{ fontSize: '12.5px' }}>
-                      Connect an EIP-6963 / injected EVM wallet to broadcast a live{' '}
-                      <code className="mono">0xbfe88b4b</code> transaction on {network.label}.
                     </span>
-                  )}
-                </div>
+                    <span className="pill">
+                      {identityReport.kindLabel}
+                      <span className="mono muted">kind={identityReport.kind}</span>
+                    </span>
+                    {identityReport.isMaterialized !== null && (
+                      <span
+                        className={`pill ${identityReport.isMaterialized ? 'pill-ok' : 'pill-warn'}`}
+                      >
+                        {identityReport.isMaterialized
+                          ? `Materialized · ${aliasByteLen.toLocaleString()} B`
+                          : 'Not materialized (0x)'}
+                      </span>
+                    )}
+                    <span className="pill pill-muted">
+                      resolution: {identityReport.resolutionLabel}
+                    </span>
+                  </div>
 
-                <div className="row" style={{ gap: '6px' }}>
-                  {evmWallet.address ? (
-                    <button
-                      type="button"
-                      className="btn btn-evm"
-                      disabled={
-                        txState.phase === 'switching' ||
-                        txState.phase === 'signing' ||
-                        matIsTz4 ||
-                        !matTzTrimmed
-                      }
-                      onClick={() => void handleSendMaterializeEvm()}
+                  <div className="grid-2">
+                    <AddressCard
+                      label="Inspected"
+                      runtime={inputRuntime}
+                      address={identityReport.input}
+                      explorerUrl={inputExplorerUrl}
+                      copied={copiedKey === 'id-in'}
+                      onCopy={() => void handleCopy('id-in', identityReport.input)}
                     >
-                      {txState.phase === 'switching' || txState.phase === 'signing' ? (
-                        <>
-                          <Loader2 size={14} aria-hidden="true" />
-                          {txState.phase === 'switching' ? 'Switching Chain…' : 'Confirm in Wallet…'}
-                        </>
-                      ) : (
-                        <>
-                          <Send size={14} aria-hidden="true" />
-                          Send via Connected EVM Wallet
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <>
+                      {identityReport.nativeAddress &&
+                        identityReport.nativeAddress !== identityReport.input && (
+                          <span className="mono muted xsmall break-all">
+                            Native home: {identityReport.nativeAddress}
+                          </span>
+                        )}
+                    </AddressCard>
+                    <AddressCard
+                      label="Translated alias"
+                      runtime={translatedRuntime}
+                      address={identityReport.translatedAddress}
+                      explorerUrl={translatedExplorerUrl}
+                      copied={copiedKey === 'id-translated'}
+                      onCopy={() =>
+                        void handleCopy('id-translated', identityReport.translatedAddress ?? '')
+                      }
+                    />
+                  </div>
+
+                  {canMaterializeReported && (
+                    <div className="callout">
+                      <div className="stack-xs" style={{ minWidth: 0, flex: '1 1 260px' }}>
+                        <strong className="strong">Next: materialize this alias on-chain</strong>
+                        <span className="field-hint">
+                          The EVM alias for <code className="break-all">{identityReport.input}</code>{' '}
+                          has no code yet. Step 2 pre-fills the address and builds the{' '}
+                          <code>0xbfe88b4b</code> transaction and CLI commands.
+                        </span>
+                      </div>
                       <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() => void onConnectEvm()}
+                        onClick={() => loadIntoMaterializer(identityReport.input)}
                       >
-                        <Wallet size={14} aria-hidden="true" />
-                        Connect EVM Wallet
+                        Continue to step 2
+                        <ArrowRight size={14} aria-hidden="true" />
                       </button>
-                      {evmWallet.providers.slice(0, 3).map((p) => (
-                        <button
-                          key={p.rdns}
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => void onConnectEvm(p.rdns)}
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              {txState.phase === 'submitted' && txState.txHash && (
-                <div aria-live="polite" className="alert alert-ok row-between">
-                  <span className="row" style={{ gap: '6px' }}>
-                    <ShieldCheck size={16} aria-hidden="true" />
-                    Broadcasted tx: <code className="mono">{txState.txHash}</code>
-                  </span>
-                  <a
-                    href={`${network.evm.explorerUrl.replace(/\/$/, '')}/tx/${txState.txHash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm"
-                  >
-                    View on Blockscout <ExternalLink size={12} />
-                  </a>
-                </div>
-              )}
+                  <details className="disclosure">
+                    <summary>
+                      <ChevronRight size={13} className="chev" aria-hidden="true" />
+                      Horus 8.0 alias semantics &amp; Safe-CREATE2 note
+                    </summary>
+                    <div className="disclosure-body stack-sm small">
+                      <span>{identityReport.aliasTypeNote}</span>
+                      <span className="muted">
+                        <strong className="strong">Horus 8.0 rule:</strong> Implicit{' '}
+                        <code>tz1/tz2/tz3</code> accounts use Safe-CREATE2 derivation for
+                        cross-chain recovery on Ethereum/Arbitrum/Base, while <code>KT1</code>{' '}
+                        contracts retain Keccak-256 aliases. Safe Singleton Factory (
+                        <code className="break-all">{SAFE_SINGLETON_FACTORY}</code>) intentionally
+                        returns <code>0x</code> (0 bytes) on Previewnet because it is only a
+                        deterministic cross-chain CREATE2 formula constant, not a deployed contract
+                        on Tezos X.
+                      </span>
+                    </div>
+                  </details>
 
-              {txState.phase === 'error' && txState.error && (
-                <div role="alert" className="alert alert-danger" style={{ flexDirection: 'column', gap: '4px' }}>
-                  <strong className="row" style={{ gap: '6px' }}>
-                    <XCircle size={14} aria-hidden="true" />
-                    Transaction Rejected / Failed
-                  </strong>
-                  {txState.decodedSummary && (
-                    <span style={{ color: 'var(--text-strong)' }}>{txState.decodedSummary}</span>
-                  )}
-                  <code className="mono" style={{ fontSize: '11.5px', wordBreak: 'break-all' }}>
-                    {txState.error}
-                  </code>
+                  <details className="disclosure">
+                    <summary>
+                      <ChevronRight size={13} className="chev" aria-hidden="true" />
+                      Raw precompile return payloads (originOf / resolveAddress)
+                    </summary>
+                    <pre className="code-block disclosure-body">
+                      {`originOf:       ${identityReport.rawOriginHex || '—'}\nresolveAddress: ${identityReport.rawResolveHex || '—'}\naliasCode:      ${identityReport.aliasCode ?? '—'}`}
+                    </pre>
+                  </details>
                 </div>
               )}
             </div>
-          ) : (
-            <div
-              id={`${uid}-mat-panel-mich`}
-              role="tabpanel"
-              aria-labelledby={`${uid}-mat-tab-mich`}
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-              }}
-              className="stack"
-            >
-              <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label text-michelson">
-                    Verified 3-Field Parameter: pair string (pair string (option string))
-                  </span>
-                  <span className="badge badge-michelson">
-                    {network.michelson.evmGateway} %materialize_alias
+          </div>
+        </TabPanel>
+      )}
+
+      {/* ===================== STEP 2 · MATERIALIZE ===================== */}
+      {step === 'materialize' && (
+        <TabPanel idPrefix={stepPrefix} id="materialize">
+          <div className="card">
+            <div className="card-header">
+              <StepTitle
+                n={2}
+                title="Materialize the alias"
+                hint={
+                  <>
+                    Deploy the Horus 8.0 alias via EVM <code>0xbfe88b4b</code> (wallet) or Michelson{' '}
+                    <code>%materialize_alias</code> (CLI / SDK).
+                  </>
+                }
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setMatTzAddress(DEFAULT_FIXTURES.aliceTz1);
+                  setMatPublicKey(DEFAULT_FIXTURES.alicePubKey);
+                  setTxState({ phase: 'idle' });
+                }}
+              >
+                Fill Alice fixture
+              </button>
+            </div>
+
+            <div className="card-body stack">
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor={`${uid}-mat-tz`} className="field-label">
+                    <span>
+                      Tezos implicit account <span className="muted">(tz1 / tz2 / tz3)</span>
+                    </span>
+                  </label>
+                  <input
+                    id={`${uid}-mat-tz`}
+                    className="input mono"
+                    value={matTzAddress}
+                    onChange={(e) => {
+                      setMatTzAddress(e.target.value);
+                      setTxState({ phase: 'idle' });
+                    }}
+                    placeholder="tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb"
+                    spellCheck={false}
+                    aria-invalid={matIsTz4}
+                  />
+                  {matIsTz4 && (
+                    <span role="alert" className="field-hint text-danger">
+                      BLS <code>tz4</code> is unsupported — cannot materialize on Tezos X.
+                    </span>
+                  )}
+                </div>
+
+                <div className="field">
+                  <label htmlFor={`${uid}-mat-pk`} className="field-label">
+                    <span>
+                      Public key <span className="muted">(edpk… / sppk… / p2pk…)</span>
+                    </span>
+                  </label>
+                  <input
+                    id={`${uid}-mat-pk`}
+                    className="input mono"
+                    value={matPublicKey}
+                    onChange={(e) => {
+                      setMatPublicKey(e.target.value);
+                      setTxState({ phase: 'idle' });
+                    }}
+                    placeholder="edpkvGfYw3LyB1UcCahKQk4rF2tvbMUk8GFiTuMjL75uGXrpvKXhjn"
+                    spellCheck={false}
+                  />
+                  <span className="field-hint">
+                    Required on v0.11 — an empty key reverts with <code>Missing public key</code>.
                   </span>
                 </div>
-                <pre className="code-block">
-                  {`Pair "tezos" (Pair "${matTzTrimmed || DEFAULT_FIXTURES.aliceTz1}" ${matPubTrimmed ? `(Some "${matPubTrimmed}")` : 'None'})`}
-                </pre>
               </div>
 
               <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                    <Terminal size={12} aria-hidden="true" />
-                    octez-client Command
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => handleCopy('octez-cli', octezClientCmd)}
-                  >
-                    {copiedKey === 'octez-cli' ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedKey === 'octez-cli' ? 'Copied' : 'Copy Command'}
-                  </button>
-                </div>
-                <pre className="code-block pre">{octezClientCmd}</pre>
+                <span className="section-label">Choose a route</span>
+                <TabList<MaterializeTab>
+                  idPrefix={matPrefix}
+                  ariaLabel="Alias materialization route"
+                  value={materializeTab}
+                  onChange={setMaterializeTab}
+                  items={[
+                    {
+                      id: 'evm_precompile',
+                      label: (
+                        <>
+                          <RuntimePill runtime="evm" small /> Precompile <code>0xbfe88b4b</code>
+                        </>
+                      ),
+                    },
+                    {
+                      id: 'michelson_gateway',
+                      label: (
+                        <>
+                          <RuntimePill runtime="michelson" small /> Gateway{' '}
+                          <code>%materialize_alias</code>
+                        </>
+                      ),
+                    },
+                  ]}
+                />
               </div>
 
-              <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                    <Layers size={12} aria-hidden="true" />
-                    @tezos-x/octez.js v25.1 Snippet
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => handleCopy('octez-js-mat', octezJsSnippet)}
-                  >
-                    {copiedKey === 'octez-js-mat' ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedKey === 'octez-js-mat' ? 'Copied' : 'Copy Snippet'}
-                  </button>
-                </div>
-                <pre className="code-block pre" style={{ maxHeight: '230px', overflowY: 'auto' }}>
-                  {octezJsSnippet}
-                </pre>
+              {materializeTab === 'evm_precompile' ? (
+                <TabPanel idPrefix={matPrefix} id="evm_precompile" className="stack">
+                  <div className="stack-sm">
+                    <div className="code-head">
+                      <span className="code-label">
+                        Calldata
+                        <span className="mono muted xsmall break-all">
+                          materializeAlias(&quot;tezos&quot;, tzAddress, publicKey) →{' '}
+                          {network.evm.precompile}
+                        </span>
+                      </span>
+                      <CopyButton
+                        label="Copy calldata"
+                        copied={copiedKey === 'mat-calldata'}
+                        disabled={!materializeCalldata}
+                        onClick={() => void handleCopy('mat-calldata', materializeCalldata)}
+                      />
+                    </div>
+                    <pre className="code-block" style={{ maxHeight: 120 }}>
+                      {materializeCalldata ||
+                        'Enter a valid tz1/tz2/tz3 address to preview 0xbfe88b4b calldata.'}
+                    </pre>
+                  </div>
+
+                  <div className="card-inset stack-sm">
+                    <div className="row-between">
+                      <div className="stack-xs" style={{ minWidth: 0, flex: '1 1 260px' }}>
+                        <span className="row" style={{ gap: 8 }}>
+                          <strong className="strong small">Send on {network.label}</strong>
+                          <WalletNeedPill need="required" />
+                        </span>
+                        {evmWallet.address ? (
+                          <span className="field-hint break-all">
+                            From <code>{evmWallet.address}</code> (
+                            {evmWallet.providerName ?? 'EVM wallet'})
+                            {evmWallet.chainId !== null &&
+                              evmWallet.chainId !== network.evm.chainId && (
+                                <span className="text-warn">
+                                  {' '}
+                                  · wallet is on chain {evmWallet.chainId}; NACBench will switch to{' '}
+                                  {network.evm.chainId} before sending.
+                                </span>
+                              )}
+                          </span>
+                        ) : (
+                          <span className="field-hint">
+                            Connect an EIP-6963 / injected EVM wallet to broadcast. No wallet? Use
+                            the Michelson gateway route with <code>octez-client</code> instead.
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="row" style={{ gap: 6 }}>
+                        {evmWallet.address ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={txBusy || matIsTz4 || !matTzTrimmed}
+                            onClick={() => void handleSendMaterializeEvm()}
+                          >
+                            {txBusy ? (
+                              <Loader2 size={14} className="spin" aria-hidden="true" />
+                            ) : (
+                              <Send size={14} aria-hidden="true" />
+                            )}
+                            {txState.phase === 'switching'
+                              ? 'Switching chain…'
+                              : txState.phase === 'signing'
+                                ? 'Confirm in wallet…'
+                                : 'Send materializeAlias'}
+                          </button>
+                        ) : (
+                          <>
+                            {evmWallet.providers.slice(0, 3).map((p) => (
+                              <button
+                                key={p.rdns}
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() => void onConnectEvm(p.rdns)}
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() => void onConnectEvm()}
+                            >
+                              <Wallet size={14} aria-hidden="true" />
+                              Connect wallet
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {evmWallet.address && (
+                      <Progress ariaLabel="Materialize transaction progress" steps={txProgress} />
+                    )}
+                  </div>
+
+                  {txState.phase === 'submitted' && txState.txHash && (
+                    <div aria-live="polite" className="alert alert-ok" style={{ alignItems: 'center' }}>
+                      <ShieldCheck size={15} aria-hidden="true" />
+                      <span className="break-all" style={{ flex: 1 }}>
+                        Broadcast tx <code>{txState.txHash}</code>
+                      </span>
+                      <a
+                        href={`${network.evm.explorerUrl.replace(/\/$/, '')}/tx/${txState.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm"
+                      >
+                        Blockscout <ExternalLink size={12} aria-hidden="true" />
+                      </a>
+                    </div>
+                  )}
+
+                  {txState.phase === 'error' && txState.error && (
+                    <div role="alert" className="alert alert-danger">
+                      <XCircle size={14} aria-hidden="true" />
+                      <div className="stack-xs" style={{ minWidth: 0 }}>
+                        <strong className="strong">Transaction rejected / failed</strong>
+                        {txState.decodedSummary && <span>{txState.decodedSummary}</span>}
+                        <code className="xsmall break-all muted">{txState.error}</code>
+                      </div>
+                    </div>
+                  )}
+                </TabPanel>
+              ) : (
+                <TabPanel idPrefix={matPrefix} id="michelson_gateway" className="stack">
+                  <div className="stack-sm">
+                    <div className="code-head">
+                      <span className="code-label">
+                        Parameter
+                        <span className="mono muted xsmall">
+                          pair string (pair string (option string))
+                        </span>
+                      </span>
+                      <code className="muted xsmall break-all">
+                        {network.michelson.evmGateway} %materialize_alias
+                      </code>
+                    </div>
+                    <pre className="code-block">
+                      {`Pair "tezos" (Pair "${matTzTrimmed || DEFAULT_FIXTURES.aliceTz1}" ${matPubTrimmed ? `(Some "${matPubTrimmed}")` : 'None'})`}
+                    </pre>
+                  </div>
+
+                  <div className="stack-sm">
+                    <div className="code-head">
+                      <span className="code-label">
+                        <Terminal size={13} aria-hidden="true" /> octez-client command
+                      </span>
+                      <CopyButton
+                        primary
+                        label="Copy command"
+                        copied={copiedKey === 'octez-cli'}
+                        onClick={() => void handleCopy('octez-cli', octezClientCmd)}
+                      />
+                    </div>
+                    <pre className="code-block pre">{octezClientCmd}</pre>
+                  </div>
+
+                  <div className="stack-sm">
+                    <div className="code-head">
+                      <span className="code-label">
+                        <Layers size={13} aria-hidden="true" /> @tezos-x/octez.js v25.1 snippet
+                      </span>
+                      <CopyButton
+                        label="Copy snippet"
+                        copied={copiedKey === 'octez-js-mat'}
+                        onClick={() => void handleCopy('octez-js-mat', octezJsSnippet)}
+                      />
+                    </div>
+                    <pre className="code-block pre" style={{ maxHeight: 260 }}>
+                      {octezJsSnippet}
+                    </pre>
+                  </div>
+                </TabPanel>
+              )}
+
+              <div className="row-between">
+                <span className="field-hint">
+                  After the tx lands, re-run step 1 to confirm the alias now has code.
+                </span>
+                <button type="button" className="btn btn-sm" onClick={() => setStep('lookup')}>
+                  Back to lookup
+                </button>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </TabPanel>
+      )}
 
-      {/* PANEL C: Block-Pinned Dual-Runtime State-Diff Inspector */}
-      <div className="panel">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <GitCompare size={15} className="text-ok" aria-hidden="true" />
-            Panel C · Block-Pinned Dual-Runtime State-Diff Inspector (
-            <code className="mono">EVM block N == Michelson level N</code>)
-          </h3>
-          <div className="row" style={{ gap: '6px' }}>
-            {(() => {
-              const canaryAddrs = loadDefaultCanaryAddresses(network.id);
-              if (canaryAddrs.source === 'unconfigured') return null;
-              const bmId = String(canaryAddrs.pingsBigMapId ?? 2294);
-              return (
+      {/* ===================== STEP 3 · STATE DIFF ===================== */}
+      {step === 'diff' && (
+        <TabPanel idPrefix={stepPrefix} id="diff">
+          <div className="card">
+            <div className="card-header">
+              <StepTitle
+                n={3}
+                title="Block-pinned state diff"
+                hint={
+                  <>
+                    Freeze EVM + Michelson state at the same height (
+                    <code>EVM block N == Michelson level N</code>), act, then capture again.
+                  </>
+                }
+              />
+              {health && (
+                <span className={`pill ${health.synced ? 'pill-ok' : 'pill-warn'}`}>
+                  {health.synced && health.evmHead !== null
+                    ? `Synced 1:1 · #${health.evmHead.toLocaleString()}`
+                    : `EVM #${health.evmHead ?? '?'} / Mich #${health.michelsonLevel ?? '?'}`}
+                </span>
+              )}
+            </div>
+
+            <div className="card-body stack">
+              {canaryBigMapId !== null && (
+                <div className="callout">
+                  <div className="stack-xs" style={{ minWidth: 0, flex: '1 1 260px' }}>
+                    <strong className="strong">Quick start: live Canary pair</strong>
+                    <span className="field-hint">
+                      Loads the deployed NacCanaryEvm + nac_canary pair and captures snapshot A
+                      with <code>big_map #{canaryBigMapId}</code>, key <code>1</code>.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`btn ${snapshotA ? '' : 'btn-primary'}`}
+                    disabled={capturingSlot !== null}
+                    onClick={() => {
+                      setDiffEvmAddr(canaryAddrs.evmCanary);
+                      setDiffMichAddr(canaryAddrs.michelsonCanary);
+                      setDiffBigMapId(canaryBigMapId);
+                      setDiffBigMapKeyType('nat');
+                      setDiffBigMapKey('1');
+                      setDiffPinnedBlock('');
+                      setProbeOpen(true);
+                      void handleCaptureSnapshot('A', {
+                        evmAddress: canaryAddrs.evmCanary,
+                        michelsonAddress: canaryAddrs.michelsonCanary,
+                        bigMapId: canaryBigMapId,
+                        bigMapKeyType: 'nat',
+                        bigMapKey: '1',
+                        pinnedBlock: '',
+                      });
+                    }}
+                  >
+                    {capturingSlot === 'A' ? (
+                      <Loader2 size={14} className="spin" aria-hidden="true" />
+                    ) : (
+                      <Camera size={14} aria-hidden="true" />
+                    )}
+                    Load Live Canary (big_map #{canaryBigMapId}, key 1)
+                  </button>
+                </div>
+              )}
+
+              <div className="stack-sm">
+                <div className="chip-row" role="group" aria-label="Address presets">
+                  <span className="chip-row-label">Or fill</span>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setDiffEvmAddr(DEFAULT_FIXTURES.freeRoutePoolEvm);
+                      setDiffMichAddr(network.michelson.evmGateway);
+                      setDiffBigMapId('');
+                    }}
+                  >
+                    Pool + Gateway
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setDiffEvmAddr('0x3c0EE21DA093b0AA44c590BA0BB1883ef8080137');
+                      setDiffMichAddr(DEFAULT_FIXTURES.aliceTz1);
+                      setDiffBigMapId('');
+                    }}
+                  >
+                    Alice dual-runtime
+                  </button>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label htmlFor={`${uid}-diff-evm`} className="field-label">
+                      <span>
+                        EVM address <span className="muted">(optional)</span>
+                      </span>
+                    </label>
+                    <input
+                      id={`${uid}-diff-evm`}
+                      className="input mono"
+                      value={diffEvmAddr}
+                      onChange={(e) => setDiffEvmAddr(e.target.value)}
+                      placeholder="0x0d9de5e5..."
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`${uid}-diff-mich`} className="field-label">
+                      <span>
+                        Michelson contract / account <span className="muted">(optional)</span>
+                      </span>
+                    </label>
+                    <input
+                      id={`${uid}-diff-mich`}
+                      className="input mono"
+                      value={diffMichAddr}
+                      onChange={(e) => setDiffMichAddr(e.target.value)}
+                      placeholder="KT18oDJJKX..."
+                      spellCheck={false}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <details
+                className="disclosure"
+                open={probeOpen}
+                onToggle={(e) => setProbeOpen((e.currentTarget as HTMLDetailsElement).open)}
+              >
+                <summary>
+                  <ChevronRight size={13} className="chev" aria-hidden="true" />
+                  Big-map key probe &amp; block pin
+                  <span className="muted xsmall">(optional · zero-indexer BLAKE2b expr…)</span>
+                </summary>
+                <div className="disclosure-body stack-sm">
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: 10,
+                    }}
+                  >
+                    <div className="field">
+                      <label htmlFor={`${uid}-bm-id`} className="field-label">
+                        Big-map ID
+                      </label>
+                      <input
+                        id={`${uid}-bm-id`}
+                        className="input mono"
+                        inputMode="numeric"
+                        value={diffBigMapId}
+                        onChange={(e) => setDiffBigMapId(e.target.value)}
+                        placeholder="e.g. 12"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uid}-bm-type`} className="field-label">
+                        Key type
+                      </label>
+                      <select
+                        id={`${uid}-bm-type`}
+                        className="select mono"
+                        value={diffBigMapKeyType}
+                        onChange={(e) => setDiffBigMapKeyType(e.target.value as BigMapKeyType)}
+                      >
+                        <option value="address">address</option>
+                        <option value="nat">nat</option>
+                        <option value="string">string</option>
+                      </select>
+                    </div>
+                    <div className="field field-span-2">
+                      <label htmlFor={`${uid}-bm-key`} className="field-label">
+                        Key value
+                      </label>
+                      <input
+                        id={`${uid}-bm-key`}
+                        className="input mono"
+                        value={diffBigMapKey}
+                        onChange={(e) => setDiffBigMapKey(e.target.value)}
+                        placeholder={
+                          diffBigMapKeyType === 'address'
+                            ? DEFAULT_FIXTURES.aliceTz1
+                            : diffBigMapKeyType === 'nat'
+                              ? '0'
+                              : 'key'
+                        }
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uid}-pin-blk`} className="field-label">
+                        Pinned block
+                      </label>
+                      <input
+                        id={`${uid}-pin-blk`}
+                        className="input mono"
+                        inputMode="numeric"
+                        value={diffPinnedBlock}
+                        onChange={(e) => setDiffPinnedBlock(e.target.value)}
+                        placeholder="Latest"
+                      />
+                    </div>
+                  </div>
+
+                  {liveBigMapHash && (
+                    <output aria-live="polite">
+                      {'error' in liveBigMapHash ? (
+                        <span className="alert alert-danger">
+                          <XCircle size={14} aria-hidden="true" />
+                          <span>Key hash error: {liveBigMapHash.error}</span>
+                        </span>
+                      ) : (
+                        <span className="output-line" style={{ alignItems: 'center' }}>
+                          <Database size={13} aria-hidden="true" />
+                          <span>BLAKE2b-256</span>
+                          <code className="strong break-all">{liveBigMapHash.exprHash}</code>
+                          <span className="mono xsmall break-all">
+                            (packed: {liveBigMapHash.packedHex})
+                          </span>
+                          <CopyButton
+                            label="Copy expr"
+                            copied={copiedKey === 'bm-expr'}
+                            onClick={() => void handleCopy('bm-expr', liveBigMapHash.exprHash)}
+                          />
+                        </span>
+                      )}
+                    </output>
+                  )}
+                </div>
+              </details>
+
+              <div className="row" style={{ gap: 8 }}>
                 <button
                   type="button"
-                  className="btn btn-sm btn-michelson"
+                  className={`btn ${!snapshotA ? 'btn-primary' : ''}`}
                   disabled={capturingSlot !== null}
+                  onClick={() => void handleCaptureSnapshot('A')}
+                >
+                  {capturingSlot === 'A' ? (
+                    <Loader2 size={14} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Camera size={14} aria-hidden="true" />
+                  )}
+                  Capture A (before)
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${snapshotA && !snapshotB ? 'btn-primary' : ''}`}
+                  disabled={capturingSlot !== null}
+                  onClick={() => void handleCaptureSnapshot('B')}
+                >
+                  {capturingSlot === 'B' ? (
+                    <Loader2 size={14} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Camera size={14} aria-hidden="true" />
+                  )}
+                  Capture B (after)
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={!snapshotA && !snapshotB}
                   onClick={() => {
-                    setDiffEvmAddr(canaryAddrs.evmCanary);
-                    setDiffMichAddr(canaryAddrs.michelsonCanary);
-                    setDiffBigMapId(bmId);
-                    setDiffBigMapKeyType('nat');
-                    setDiffBigMapKey('1');
-                    setDiffPinnedBlock('');
-                    void handleCaptureSnapshot('A', {
-                      evmAddress: canaryAddrs.evmCanary,
-                      michelsonAddress: canaryAddrs.michelsonCanary,
-                      bigMapId: bmId,
-                      bigMapKeyType: 'nat',
-                      bigMapKey: '1',
-                      pinnedBlock: '',
-                    });
+                    setSnapshotA(snapshotB);
+                    setSnapshotB(snapshotA);
                   }}
                 >
-                  Load Live Canary (big_map #{bmId}, key 1)
+                  <Repeat size={13} aria-hidden="true" />
+                  Swap
                 </button>
-              );
-            })()}
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setDiffEvmAddr(DEFAULT_FIXTURES.freeRoutePoolEvm);
-                setDiffMichAddr(network.michelson.evmGateway);
-                setDiffBigMapId('');
-              }}
-            >
-              Pool + Gateway
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setDiffEvmAddr('0x3c0EE21DA093b0AA44c590BA0BB1883ef8080137');
-                setDiffMichAddr(DEFAULT_FIXTURES.aliceTz1);
-                setDiffBigMapId('');
-              }}
-            >
-              Alice Dual-Runtime
-            </button>
-          </div>
-        </div>
-
-        <div className="panel-body stack">
-          <div className="grid-2">
-            <div className="field">
-              <label htmlFor={`${uid}-diff-evm`} className="field-label">
-                Optional EVM Address (0x…)
-              </label>
-              <input
-                id={`${uid}-diff-evm`}
-                className="input mono"
-                value={diffEvmAddr}
-                onChange={(e) => setDiffEvmAddr(e.target.value)}
-                placeholder="0x0d9de5e5..."
-                spellCheck={false}
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor={`${uid}-diff-mich`} className="field-label">
-                Optional Michelson Contract / Account (KT1… / tz1…)
-              </label>
-              <input
-                id={`${uid}-diff-mich`}
-                className="input mono"
-                value={diffMichAddr}
-                onChange={(e) => setDiffMichAddr(e.target.value)}
-                placeholder="KT18oDJJKX..."
-                spellCheck={false}
-              />
-            </div>
-          </div>
-
-          <fieldset
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '12px',
-              margin: 0,
-              background: 'var(--bg-elevated)',
-            }}
-            className="stack-sm"
-          >
-            <legend
-              className="mono muted"
-              style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 6px' }}
-            >
-              Optional Michelson Big-Map Key Probe (Zero-Indexer BLAKE2b expr…) &amp; Block Pin
-            </legend>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                gap: '10px',
-              }}
-            >
-              <div className="field">
-                <label htmlFor={`${uid}-bm-id`} className="field-label">
-                  Big-Map ID
-                </label>
-                <input
-                  id={`${uid}-bm-id`}
-                  className="input mono"
-                  inputMode="numeric"
-                  value={diffBigMapId}
-                  onChange={(e) => setDiffBigMapId(e.target.value)}
-                  placeholder="e.g. 12"
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor={`${uid}-bm-type`} className="field-label">
-                  Key Type
-                </label>
-                <select
-                  id={`${uid}-bm-type`}
-                  className="select mono"
-                  value={diffBigMapKeyType}
-                  onChange={(e) => setDiffBigMapKeyType(e.target.value as BigMapKeyType)}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={!snapshotA && !snapshotB}
+                  onClick={() => {
+                    setSnapshotA(null);
+                    setSnapshotB(null);
+                    setDiffError(null);
+                  }}
                 >
-                  <option value="address">address</option>
-                  <option value="nat">nat</option>
-                  <option value="string">string</option>
-                </select>
+                  <Trash2 size={13} aria-hidden="true" />
+                  Clear
+                </button>
               </div>
 
-              <div className="field" style={{ gridColumn: 'span 2' }}>
-                <label htmlFor={`${uid}-bm-key`} className="field-label">
-                  Key Value
-                </label>
-                <input
-                  id={`${uid}-bm-key`}
-                  className="input mono"
-                  value={diffBigMapKey}
-                  onChange={(e) => setDiffBigMapKey(e.target.value)}
-                  placeholder={
-                    diffBigMapKeyType === 'address'
-                      ? DEFAULT_FIXTURES.aliceTz1
-                      : diffBigMapKeyType === 'nat'
-                        ? '0'
-                        : 'key'
-                  }
-                  spellCheck={false}
+              {diffError && (
+                <div role="alert" className="alert alert-danger">
+                  <XCircle size={15} aria-hidden="true" />
+                  <span>
+                    <strong>Snapshot capture error:</strong> {diffError}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid-2" aria-live="polite">
+                <SnapshotCard
+                  snapshot={snapshotA}
+                  slotLabel="A · Before"
+                  hint="Capture A first to freeze both runtimes at the current block."
+                />
+                <SnapshotCard
+                  snapshot={snapshotB}
+                  slotLabel="B · After"
+                  hint="Act on-chain (e.g. run a Canary probe), then capture B to compute the diff."
                 />
               </div>
 
-              <div className="field">
-                <label htmlFor={`${uid}-pin-blk`} className="field-label">
-                  Pinned Block (opt.)
-                </label>
-                <input
-                  id={`${uid}-pin-blk`}
-                  className="input mono"
-                  inputMode="numeric"
-                  value={diffPinnedBlock}
-                  onChange={(e) => setDiffPinnedBlock(e.target.value)}
-                  placeholder="Auto latest"
-                />
-              </div>
-            </div>
-
-            {liveBigMapHash && (
-              <output
-                aria-live="polite"
-                className={`alert ${'error' in liveBigMapHash ? 'alert-danger' : 'alert-info'} row-between`}
-                style={{ padding: '8px 11px' }}
-              >
-                {'error' in liveBigMapHash ? (
-                  <span>Key hash error: {liveBigMapHash.error}</span>
-                ) : (
-                  <>
-                    <span className="row" style={{ gap: '6px' }}>
-                      <Database size={13} className="text-michelson" aria-hidden="true" />
-                      <span className="muted">
-                        BLAKE2b-256 <code className="mono">expr…</code>:
-                      </span>
-                      <code className="mono text-michelson" style={{ wordBreak: 'break-all' }}>
-                        {liveBigMapHash.exprHash}
-                      </code>
-                      <span className="mono muted" style={{ fontSize: '11px' }}>
-                        (packed: {liveBigMapHash.packedHex})
-                      </span>
+              {computedDiff && (
+                <div aria-live="polite" className="card-inset stack-sm">
+                  <div className="row-between">
+                    <strong className="strong row" style={{ gap: 6 }}>
+                      <GitCompare size={15} aria-hidden="true" />
+                      State diff A → B
+                    </strong>
+                    <span className="mono muted xsmall">
+                      #{computedDiff.before.blockNumber.toLocaleString()} → #
+                      {computedDiff.after.blockNumber.toLocaleString()}
                     </span>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => handleCopy('bm-expr', liveBigMapHash.exprHash)}
-                    >
-                      {copiedKey === 'bm-expr' ? 'Copied' : 'Copy expr'}
-                    </button>
-                  </>
-                )}
-              </output>
-            )}
-          </fieldset>
-
-          {/* Snapshot Capture Controls */}
-          <div className="row" style={{ gap: '8px' }}>
-            <button
-              type="button"
-              className="btn btn-evm"
-              disabled={capturingSlot !== null}
-              onClick={() => void handleCaptureSnapshot('A')}
-            >
-              {capturingSlot === 'A' ? (
-                <Loader2 size={14} aria-hidden="true" />
-              ) : (
-                <Camera size={14} aria-hidden="true" />
+                  </div>
+                  <div className="kv-grid">
+                    <div className="kv-item">
+                      <span className="kv-label">Δ block</span>
+                      <span className="kv-value">
+                        {computedDiff.blockDelta >= 0
+                          ? `+${computedDiff.blockDelta}`
+                          : String(computedDiff.blockDelta)}
+                      </span>
+                    </div>
+                    <div className="kv-item">
+                      <span className="kv-label row" style={{ gap: 6 }}>
+                        Δ balance <RuntimePill runtime="evm" small />
+                      </span>
+                      <span className="kv-value">
+                        {formatSignedBigInt(computedDiff.evmBalanceDeltaWei, 'wei')}
+                      </span>
+                    </div>
+                    <div className="kv-item">
+                      <span className="kv-label row" style={{ gap: 6 }}>
+                        Δ balance <RuntimePill runtime="michelson" small />
+                      </span>
+                      <span className="kv-value">
+                        {formatSignedBigInt(computedDiff.michelsonBalanceDeltaMutez, 'mutez')}
+                      </span>
+                    </div>
+                    <div className="kv-item">
+                      <span className="kv-label">Storage</span>
+                      <span className="kv-value">
+                        {computedDiff.michelsonStorageChanged ? 'Mutated' : 'Unchanged'}
+                      </span>
+                    </div>
+                    <div className="kv-item">
+                      <span className="kv-label">Big-map value</span>
+                      <span className="kv-value">
+                        {computedDiff.bigMapValueChanged ? 'Mutated' : 'Unchanged'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
-              Capture Snapshot A (Before)
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-michelson"
-              disabled={capturingSlot !== null}
-              onClick={() => void handleCaptureSnapshot('B')}
-            >
-              {capturingSlot === 'B' ? (
-                <Loader2 size={14} aria-hidden="true" />
-              ) : (
-                <Camera size={14} aria-hidden="true" />
-              )}
-              Capture Snapshot B (After)
-            </button>
-
-            <button
-              type="button"
-              className="btn"
-              disabled={!snapshotA && !snapshotB}
-              onClick={() => {
-                setSnapshotA(snapshotB);
-                setSnapshotB(snapshotA);
-              }}
-            >
-              <Repeat size={13} aria-hidden="true" />
-              Swap A ↔ B
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={!snapshotA && !snapshotB}
-              onClick={() => {
-                setSnapshotA(null);
-                setSnapshotB(null);
-                setDiffError(null);
-              }}
-            >
-              <Trash2 size={13} aria-hidden="true" />
-              Clear
-            </button>
-          </div>
-
-          {diffError && (
-            <div role="alert" className="alert alert-danger">
-              <XCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
-              <span>
-                <strong>Snapshot Capture Error:</strong> {diffError}
-              </span>
             </div>
-          )}
-
-          <div className="grid-2">
-            <SnapshotCard
-              snapshot={snapshotA}
-              slotLabel="SNAPSHOT A · BEFORE"
-              accentClass="panel-evm"
-            />
-            <SnapshotCard
-              snapshot={snapshotB}
-              slotLabel="SNAPSHOT B · AFTER"
-              accentClass="panel-michelson"
-            />
           </div>
-
-          {/* Computed Dual-Runtime Diff */}
-          {computedDiff && (
-            <div
-              aria-live="polite"
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--ok-soft)',
-                border: '1px solid var(--ok-border)',
-              }}
-              className="stack-sm"
-            >
-              <div className="row-between">
-                <strong className="text-ok row" style={{ gap: '6px' }}>
-                  <GitCompare size={15} aria-hidden="true" />
-                  Dual-Runtime State Diff (A → B)
-                </strong>
-                <span className="mono muted" style={{ fontSize: '11.5px' }}>
-                  #{computedDiff.before.blockNumber.toLocaleString()} → #
-                  {computedDiff.after.blockNumber.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="kv-grid">
-                <div className="kv-item">
-                  <span className="kv-label">Δ Block</span>
-                  <span className="kv-value">
-                    {computedDiff.blockDelta >= 0
-                      ? `+${computedDiff.blockDelta}`
-                      : String(computedDiff.blockDelta)}
-                  </span>
-                </div>
-
-                <div className="kv-item" style={{ borderColor: 'var(--evm-border)' }}>
-                  <span className="kv-label text-evm">Δ EVM Wei</span>
-                  <span className="kv-value">
-                    {formatSignedBigInt(computedDiff.evmBalanceDeltaWei, 'wei')}
-                  </span>
-                </div>
-
-                <div className="kv-item" style={{ borderColor: 'var(--michelson-border)' }}>
-                  <span className="kv-label text-michelson">Δ Michelson Mutez</span>
-                  <span className="kv-value">
-                    {formatSignedBigInt(computedDiff.michelsonBalanceDeltaMutez, 'mutez')}
-                  </span>
-                </div>
-
-                <div className="kv-item">
-                  <span className="kv-label">Storage Changed</span>
-                  <span
-                    className={`kv-value ${
-                      computedDiff.michelsonStorageChanged ? 'text-evm' : 'text-ok'
-                    }`}
-                  >
-                    {computedDiff.michelsonStorageChanged ? 'MUTATED' : 'UNCHANGED'}
-                  </span>
-                </div>
-
-                <div className="kv-item">
-                  <span className="kv-label">Big-Map Changed</span>
-                  <span
-                    className={`kv-value ${
-                      computedDiff.bigMapValueChanged ? 'text-evm' : 'text-ok'
-                    }`}
-                  >
-                    {computedDiff.bigMapValueChanged ? 'MUTATED' : 'UNCHANGED'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        </TabPanel>
+      )}
     </section>
   );
 }

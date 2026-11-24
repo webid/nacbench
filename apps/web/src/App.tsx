@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Binary, ExternalLink, Fingerprint, Flame } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { AliasInspectorModule } from './components/AliasInspectorModule';
 import { CanaryLabModule } from './components/CanaryLabModule';
 import { CodecModule } from './components/CodecModule';
 import { Header } from './components/Header';
+import { WalletNeedPill, type WalletNeed } from './components/ui';
 import { DEFAULT_NETWORK, NETWORKS } from './lib/networks';
 import { fetchGatewayHealth } from './lib/rpc';
+import {
+  resolveInitialTheme,
+  subscribeSystemTheme,
+  toggleTheme,
+  type Theme,
+} from './lib/theme';
 import type {
   CodecPresetId,
   EvmWalletState,
@@ -14,9 +21,15 @@ import type {
   NetworkId,
 } from './lib/types';
 import {
+  clearWalletPreference,
   connectEvmWallet,
   discoverEip6963Providers,
+  loadWalletPreference,
+  onEip6963Announce,
+  restoreEvmWalletSession,
+  subscribeWalletEvents,
   switchEvmChain,
+  type ConnectedEvmWallet,
   type Eip1193Provider,
 } from './lib/wallets';
 
@@ -38,6 +51,46 @@ const VALID_PRESETS = new Set<CodecPresetId>([
   'canary_burn_gas',
   'canary_get_state_digest',
 ]);
+
+interface ModuleMeta {
+  id: ModuleTab;
+  n: number;
+  title: string;
+  short: string;
+  desc: string;
+  wallet: WalletNeed;
+  walletLabel: string;
+}
+
+const MODULES: ModuleMeta[] = [
+  {
+    id: 'codec',
+    n: 1,
+    title: 'Encode & Snippets',
+    short: 'Encode',
+    desc: 'Build binary Micheline / EVM ABI payloads & guardrail-safe code.',
+    wallet: 'none',
+    walletLabel: 'No wallet needed',
+  },
+  {
+    id: 'alias',
+    n: 2,
+    title: 'Alias & State Diff',
+    short: 'Alias',
+    desc: 'Inspect Horus 8.0 aliases, materialize on-chain, & diff EVM vs. Michelson state.',
+    wallet: 'optional',
+    walletLabel: 'Wallet optional · only to send materialize tx',
+  },
+  {
+    id: 'canary',
+    n: 3,
+    title: 'Canary Lab & Debugger',
+    short: 'Canary',
+    desc: 'Run live Previewnet v0.11 probes or inspect any cross-runtime tx trace.',
+    wallet: 'optional',
+    walletLabel: 'Wallet optional · traces & view probe are free',
+  },
+];
 
 function readInitialUrlState(): {
   networkId: NetworkId;
@@ -77,6 +130,7 @@ function readInitialUrlState(): {
 
 export default function App() {
   const initialUrlRef = useRef(readInitialUrlState());
+  const [theme, setThemeState] = useState<Theme>(() => resolveInitialTheme());
   const [networkId, setNetworkId] = useState<NetworkId>(initialUrlRef.current.networkId);
   const [activeTab, setActiveTab] = useState<ModuleTab>(initialUrlRef.current.tab);
   const [urlPreset, setUrlPreset] = useState<CodecPresetId | undefined>(
@@ -97,8 +151,15 @@ export default function App() {
   const [walletBusy, setWalletBusy] = useState<boolean>(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const activeProviderRef = useRef<Eip1193Provider | null>(null);
+  const walletUnsubRef = useRef<(() => void) | null>(null);
 
   const network = NETWORKS[networkId];
+
+  useEffect(() => subscribeSystemTheme(setThemeState), []);
+
+  const handleToggleTheme = useCallback(() => {
+    setThemeState((current) => toggleTheme(current));
+  }, []);
 
   // Keep shareable URL query params synced without polluting browser history stack
   useEffect(() => {
@@ -146,34 +207,36 @@ export default function App() {
     void refreshHealth();
   }, [refreshHealth]);
 
-  useEffect(() => {
-    const syncProviders = () => {
-      const found = discoverEip6963Providers();
-      setEvmWallet((prev) => ({
-        ...prev,
-        providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
-      }));
-    };
-    syncProviders();
-    const timer = window.setTimeout(syncProviders, 400);
-    return () => window.clearTimeout(timer);
+  const handleDisconnectEvm = useCallback(() => {
+    clearWalletPreference();
+    walletUnsubRef.current?.();
+    walletUnsubRef.current = null;
+    activeProviderRef.current = null;
+    setWalletError(null);
+    setEvmWallet((prev) => ({
+      ...prev,
+      address: null,
+      chainId: null,
+      providerName: null,
+    }));
   }, []);
 
-  const handleConnectEvm = useCallback(async (rdns?: string) => {
-    setWalletBusy(true);
-    setWalletError(null);
-    try {
-      const connected = await connectEvmWallet(rdns);
+  const bindConnectedWallet = useCallback(
+    (connected: ConnectedEvmWallet) => {
+      walletUnsubRef.current?.();
       activeProviderRef.current = connected.provider;
 
-      connected.provider.on?.('accountsChanged', (accounts: unknown) => {
-        const list = Array.isArray(accounts) ? (accounts as string[]) : [];
-        setEvmWallet((prev) => ({ ...prev, address: list[0] ?? null }));
-      });
-      connected.provider.on?.('chainChanged', (chainHex: unknown) => {
-        if (typeof chainHex === 'string') {
-          setEvmWallet((prev) => ({ ...prev, chainId: parseInt(chainHex, 16) }));
-        }
+      walletUnsubRef.current = subscribeWalletEvents(connected.provider, {
+        onAccountsChanged: (accounts) => {
+          if (accounts.length === 0) {
+            handleDisconnectEvm();
+            return;
+          }
+          setEvmWallet((prev) => ({ ...prev, address: accounts[0] }));
+        },
+        onChainChanged: (chainId) => {
+          setEvmWallet((prev) => ({ ...prev, chainId }));
+        },
       });
 
       const found = discoverEip6963Providers();
@@ -183,12 +246,72 @@ export default function App() {
         providerName: connected.providerName,
         providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
       });
-    } catch (err) {
-      setWalletError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setWalletBusy(false);
-    }
-  }, []);
+    },
+    [handleDisconnectEvm],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let restoring = false;
+
+    const syncProviders = () => {
+      const found = discoverEip6963Providers();
+      setEvmWallet((prev) => ({
+        ...prev,
+        providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
+      }));
+    };
+
+    const attemptSilentRestore = async () => {
+      if (cancelled || restoring || activeProviderRef.current || !loadWalletPreference()) return;
+      restoring = true;
+      try {
+        const restored = await restoreEvmWalletSession();
+        if (!cancelled && restored && loadWalletPreference()) {
+          bindConnectedWallet(restored);
+        }
+      } finally {
+        restoring = false;
+      }
+    };
+
+    syncProviders();
+    void attemptSilentRestore();
+
+    const unsubAnnounce = onEip6963Announce(() => {
+      syncProviders();
+      void attemptSilentRestore();
+    });
+
+    const timer = window.setTimeout(() => {
+      syncProviders();
+      void attemptSilentRestore();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      unsubAnnounce();
+      walletUnsubRef.current?.();
+      walletUnsubRef.current = null;
+    };
+  }, [bindConnectedWallet]);
+
+  const handleConnectEvm = useCallback(
+    async (rdns?: string) => {
+      setWalletBusy(true);
+      setWalletError(null);
+      try {
+        const connected = await connectEvmWallet(rdns);
+        bindConnectedWallet(connected);
+      } catch (err) {
+        setWalletError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setWalletBusy(false);
+      }
+    },
+    [bindConnectedWallet],
+  );
 
   const handleSwitchChain = useCallback(async () => {
     if (!activeProviderRef.current) return;
@@ -204,8 +327,27 @@ export default function App() {
     }
   }, [network]);
 
+  const activeModule = MODULES.find((m) => m.id === activeTab) ?? MODULES[0];
+
+  const onNavKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    const idx = MODULES.findIndex((m) => m.id === activeTab);
+    let next = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % MODULES.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      next = (idx - 1 + MODULES.length) % MODULES.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = MODULES.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    setActiveTab(MODULES[next].id);
+    document.getElementById(`tab-${MODULES[next].id}`)?.focus();
+  };
+
   return (
     <div className="app-shell">
+      <a href="#main" className="sr-only">
+        Skip to workspace
+      </a>
       <Header
         network={network}
         health={health}
@@ -213,63 +355,70 @@ export default function App() {
         evmWallet={evmWallet}
         walletBusy={walletBusy}
         walletError={walletError}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onSelectNetwork={setNetworkId}
         onRefreshHealth={() => void refreshHealth()}
         onConnectEvm={handleConnectEvm}
+        onDisconnectEvm={handleDisconnectEvm}
         onSwitchChain={handleSwitchChain}
       />
 
-      <main className="main-content">
+      <main className="main-content" id="main">
         <div className="container">
-          <nav className="tabs" role="tablist" aria-label="NACBench modules">
-            <button
-              type="button"
-              role="tab"
-              id="tab-codec"
-              aria-selected={activeTab === 'codec'}
-              aria-controls="panel-codec"
-              className={`tab ${activeTab === 'codec' ? 'tab-active' : ''}`}
-              onClick={() => setActiveTab('codec')}
+          <nav aria-label="NACBench workspaces">
+            <div
+              className="module-nav"
+              role="tablist"
+              aria-label="NACBench modules"
+              onKeyDown={onNavKeyDown}
             >
-              <Binary size={15} className="text-evm" />
-              Codec &amp; Snippets
-              <span className="badge badge-evm">Micheline · ABI</span>
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              id="tab-alias"
-              aria-selected={activeTab === 'alias'}
-              aria-controls="panel-alias"
-              className={`tab ${activeTab === 'alias' ? 'tab-active' : ''}`}
-              onClick={() => setActiveTab('alias')}
-            >
-              <Fingerprint size={15} className="text-michelson" />
-              Horus Alias &amp; State Diff
-              <span className="badge badge-michelson">0xbfe88b4b · 1:1 Sync</span>
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              id="tab-canary"
-              aria-selected={activeTab === 'canary'}
-              aria-controls="panel-canary"
-              className={`tab ${activeTab === 'canary' ? 'tab-active' : ''}`}
-              onClick={() => setActiveTab('canary')}
-            >
-              <Flame size={15} className="text-warn" />
-              Canary Lab
-              <span className="badge badge-warn">5 Probes · 429 OOG</span>
-            </button>
+              {MODULES.map((m) => {
+                const selected = activeTab === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="tab"
+                    id={`tab-${m.id}`}
+                    aria-selected={selected}
+                    aria-controls={`panel-${m.id}`}
+                    tabIndex={selected ? 0 : -1}
+                    className="module-tab"
+                    onClick={() => setActiveTab(m.id)}
+                  >
+                    <span className="module-tab-head">
+                      <span className="module-tab-num" aria-hidden="true">
+                        {m.n}
+                      </span>
+                      <span className="module-tab-title">{m.title}</span>
+                      <span className="module-tab-short" aria-hidden="true">
+                        {m.short}
+                      </span>
+                    </span>
+                    <span className="module-tab-desc">{m.desc}</span>
+                    <span className="module-tab-meta">
+                      <WalletNeedPill need={m.wallet} label={m.walletLabel} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </nav>
 
-          <div
-            role="tabpanel"
-            id={`panel-${activeTab}`}
-            aria-labelledby={`tab-${activeTab}`}
-          >
+          <div className="module-context" aria-hidden="true">
+            <span>
+              <strong className="strong">
+                {activeModule.n}. {activeModule.title}
+              </strong>{' '}
+              — {activeModule.desc}
+            </span>
+            <span>
+              <WalletNeedPill need={activeModule.wallet} label={activeModule.walletLabel} />
+            </span>
+          </div>
+
+          <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
             {activeTab === 'codec' && (
               <CodecModule
                 network={network}
@@ -302,51 +451,19 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <div className="container stack-sm">
-          <div className="row-between">
+        <div className="container stack">
+          <div className="row-between" style={{ alignItems: 'flex-start' }}>
+            <div className="stack-xs" style={{ minWidth: 0 }}>
+              <span>
+                <strong className="strong">NACBench</strong> · open-source (MIT) developer
+                workbench for Tezos X Native Atomic Composability
+              </span>
+              <span className="mono xsmall muted break-all">
+                Precompile {network.evm.precompile.slice(0, 10)}…0007 · Gateway{' '}
+                {network.michelson.evmGateway}
+              </span>
+            </div>
             <span>
-              <strong>NACBench</strong> · Open-Source MIT Developer Workbench for Tezos X Native
-              Atomic Composability
-            </span>
-            <span className="mono">
-              Precompile {network.evm.precompile.slice(0, 10)}…0007 · Gateway{' '}
-              {network.michelson.evmGateway}
-            </span>
-          </div>
-          <div className="row-between" style={{ gap: '12px' }}>
-            <nav
-              aria-label="Tezos X ecosystem links"
-              className="row"
-              style={{ gap: '14px', fontSize: '12px' }}
-            >
-              <a href="https://github.com/webid/nacbench" target="_blank" rel="noreferrer">
-                GitHub <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-              <a
-                href="https://github.com/webid/nacbench/blob/main/docs/NAC-FIELD-GUIDE.md"
-                target="_blank"
-                rel="noreferrer"
-              >
-                NAC Field Guide <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-              <a
-                href="https://faucet.previewnet.tezosx.nomadic-labs.com"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Previewnet Faucet <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-              <a href="https://migl992.github.io/nactrace/" target="_blank" rel="noreferrer">
-                nactrace <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-              <a href="https://xtzkt.io" target="_blank" rel="noreferrer">
-                0xTzKT <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-              <a href="https://tezosdappbuilder.xyz" target="_blank" rel="noreferrer">
-                Tezos dApp Builder <ExternalLink size={11} style={{ verticalAlign: 'middle' }} />
-              </a>
-            </nav>
-            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
               developed by{' '}
               <a href="https://x.com/webidente" target="_blank" rel="noreferrer">
                 opeculiar
@@ -357,6 +474,34 @@ export default function App() {
               </a>
             </span>
           </div>
+          <nav aria-label="Tezos X ecosystem links" className="footer-links">
+            <a href="https://github.com/webid/nacbench" target="_blank" rel="noreferrer">
+              GitHub <ExternalLink size={11} aria-hidden="true" />
+            </a>
+            <a
+              href="https://github.com/webid/nacbench/blob/main/docs/NAC-FIELD-GUIDE.md"
+              target="_blank"
+              rel="noreferrer"
+            >
+              NAC Field Guide <ExternalLink size={11} aria-hidden="true" />
+            </a>
+            <a
+              href="https://faucet.previewnet.tezosx.nomadic-labs.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Previewnet Faucet <ExternalLink size={11} aria-hidden="true" />
+            </a>
+            <a href="https://migl992.github.io/nactrace/" target="_blank" rel="noreferrer">
+              nactrace <ExternalLink size={11} aria-hidden="true" />
+            </a>
+            <a href="https://xtzkt.io" target="_blank" rel="noreferrer">
+              0xTzKT <ExternalLink size={11} aria-hidden="true" />
+            </a>
+            <a href="https://tezosdappbuilder.xyz" target="_blank" rel="noreferrer">
+              Tezos dApp Builder <ExternalLink size={11} aria-hidden="true" />
+            </a>
+          </nav>
         </div>
       </footer>
     </div>

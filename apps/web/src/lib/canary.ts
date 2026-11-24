@@ -40,6 +40,27 @@ export const CANARY_SELECTORS = {
   setAuthorizedKt1Alias: '0xdd43e080',
 } as const;
 
+export const KNOWN_SELECTOR_NAMES: Record<string, string> = {
+  [CANARY_SELECTORS.probeWrite]: 'probeWrite',
+  [CANARY_SELECTORS.probeRoundTrip]: 'probeRoundTrip',
+  [CANARY_SELECTORS.onMichelsonCallback]: 'onMichelsonCallback',
+  [CANARY_SELECTORS.probeView]: 'probeView',
+  [CANARY_SELECTORS.probeRollback]: 'probeRollback',
+  [CANARY_SELECTORS.probeOog]: 'probeOog',
+  [CANARY_SELECTORS.echoView]: 'echoView',
+  [CANARY_SELECTORS.setAuthorizedKt1Alias]: 'setAuthorizedKt1Alias',
+  [selectorOf('callMichelson(string,string,bytes)')]: 'callMichelson',
+  [selectorOf('callMichelsonView(string,string,bytes)')]: 'callMichelsonView',
+  [selectorOf('materializeAlias(string,string,string)')]: 'materializeAlias',
+  [selectorOf('originOf(string,uint8)')]: 'originOf',
+  [selectorOf('resolveAddress(string,uint8,uint8)')]: 'resolveAddress',
+};
+
+export function resolveKnownSelectorName(selector?: string): string | null {
+  if (!selector) return null;
+  return KNOWN_SELECTOR_NAMES[selector.trim().toLowerCase()] ?? null;
+}
+
 export const PREVIEWNET_SAMPLE_TX_HASH =
   '0x4139780ecc401d3282c7bdbf7b3279207de978d3aaa7580ceea104deee0a4d29';
 
