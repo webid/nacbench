@@ -1,28 +1,6 @@
 import { useId, useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  ArrowRightLeft,
-  Binary,
-  Check,
-  ChevronDown,
-  Code2,
-  Copy,
-  Cpu,
-  Flame,
-  Info,
-  Layers,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  Terminal,
-  Zap,
-} from 'lucide-react';
-import type {
-  CodecInput,
-  CodecPresetId,
-  GuardrailNote,
-  NetworkConfig,
-} from '../lib/types';
+import { AlertTriangle, ArrowRight, Check, Flame, Info, ShieldAlert, ShieldCheck } from 'lucide-react';
+import type { CodecInput, CodecPresetId, GuardrailNote, NetworkConfig } from '../lib/types';
 import {
   decodeRawMichelineHex,
   decodeRevertPayload,
@@ -34,10 +12,12 @@ import {
 } from '../lib/codec';
 import { generateGuardrailedSnippets } from '../lib/snippets';
 import { DEFAULT_FIXTURES, NULL_SOURCE_ADDRESS } from '../lib/networks';
+import { CopyButton, StepTitle, TabList, TabPanel, useCopy } from './ui';
 
 type CallDirection = CodecInput['callDirection'];
 type SnippetTab = 'solidity' | 'octezJs' | 'smartpy' | 'cheatsheet';
 type DecoderTab = 'micheline' | 'revert';
+type OutputTab = 'payload' | 'code' | 'guardrails' | 'decoder';
 
 interface DirectionOption {
   id: CallDirection;
@@ -296,14 +276,9 @@ function getFieldVisibility(preset: CodecPresetId) {
   };
 }
 
-function GuardrailCard({ note }: { note: GuardrailNote }) {
+function GuardrailRow({ note }: { note: GuardrailNote }) {
   const isCritical = note.severity === 'critical';
-  const isWarning = note.severity === 'warning';
-  const severityClass = note.triggered
-    ? isCritical
-      ? 'guardrail-critical'
-      : 'guardrail-warning'
-    : 'guardrail-info';
+  const state = note.triggered ? (isCritical ? 'critical' : 'warning') : 'ok';
 
   const Icon = note.triggered
     ? isCritical
@@ -313,47 +288,20 @@ function GuardrailCard({ note }: { note: GuardrailNote }) {
       ? Info
       : ShieldCheck;
 
-  const iconClass = note.triggered
-    ? isCritical
-      ? 'text-danger'
-      : 'text-warn'
-    : isCritical
-      ? 'text-danger'
-      : isWarning
-        ? 'text-evm'
-        : 'text-michelson';
+  const iconClass = note.triggered ? (isCritical ? 'text-danger' : 'text-warn') : 'muted';
 
   return (
-    <div className={`guardrail-item ${severityClass}`}>
-      <div className="row-between" style={{ gap: '8px' }}>
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontWeight: 600,
-            fontSize: '12.5px',
-            color: 'var(--text-strong)',
-          }}
-        >
-          <Icon size={14} className={iconClass} aria-hidden="true" />
-          {note.title}
-        </span>
-        <span
-          className={`badge ${
-            note.triggered
-              ? isCritical
-                ? 'badge-danger'
-                : 'badge-warn'
-              : 'badge-ok'
-          }`}
-        >
-          {note.triggered ? (isCritical ? 'TRAP ACTIVE' : 'CHECK') : 'GUARDED'}
-        </span>
-      </div>
-      <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)', lineHeight: 1.48 }}>
-        {note.detail}
-      </p>
+    <div className="guard-row" data-state={state}>
+      <Icon size={14} className={iconClass} aria-hidden="true" />
+      <span className="guard-title">{note.title}</span>
+      <span
+        className={`pill pill-sm ${
+          note.triggered ? (isCritical ? 'pill-danger' : 'pill-warn') : 'pill-muted'
+        }`}
+      >
+        {note.triggered ? (isCritical ? 'Trap active' : 'Check') : 'Guarded'}
+      </span>
+      <p className="guard-detail">{note.detail}</p>
     </div>
   );
 }
@@ -432,13 +380,14 @@ export function CodecModule({
     return base;
   });
 
+  const [outputTab, setOutputTab] = useState<OutputTab>('payload');
   const [snippetTab, setSnippetTab] = useState<SnippetTab>('solidity');
   const [decoderTab, setDecoderTab] = useState<DecoderTab>('revert');
   const [rawMichelineInput, setRawMichelineInput] = useState<string>(
     '0x01000000136e616362656e63682d70696e672d76302e3131',
   );
   const [revertInput, setRevertInput] = useState<string>(REVERT_SAMPLES[0].payload);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copiedKey, copy: handleCopy } = useCopy();
 
   const result = useMemo(() => encodeCodecInput(input), [input]);
   const snippets = useMemo(
@@ -450,10 +399,7 @@ export function CodecModule({
     () => decodeRawMichelineHex(rawMichelineInput),
     [rawMichelineInput],
   );
-  const decodedRevert = useMemo(
-    () => decodeRevertPayload(revertInput),
-    [revertInput],
-  );
+  const decodedRevert = useMemo(() => decodeRevertPayload(revertInput), [revertInput]);
 
   const weiMetrics = useMemo(() => formatMutezFromWei(input.valueWei), [input.valueWei]);
   const gasNum = useMemo(() => {
@@ -463,36 +409,18 @@ export function CodecModule({
 
   const fieldVis = useMemo(() => getFieldVisibility(input.preset), [input.preset]);
   const isEvmOrigin =
-    input.callDirection === 'evm_to_michelson' ||
-    input.callDirection === 'evm_view_michelson';
-  const isViewCall =
-    input.callDirection === 'evm_view_michelson' ||
-    input.callDirection === 'michelson_staticcall_evm';
+    input.callDirection === 'evm_to_michelson' || input.callDirection === 'evm_view_michelson';
 
   const kt1IsTz4 = isTz4Address(input.kt1Target.trim());
   const kt1Valid = isValidTezosXAddress(input.kt1Target.trim());
   const evmValid = isValidEvmAddress(input.evmTarget.trim());
   const addrFieldIsTz4 = fieldVis.showAddress && isTz4Address(input.addressVal.trim());
   const triggeredCount = result.guardrails.filter((g) => g.triggered).length;
-
-  const handleCopy = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    setCopiedKey(key);
-    window.setTimeout(() => {
-      setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 1800);
-  };
+  const sortedGuardrails = useMemo(
+    () =>
+      [...result.guardrails].sort((a, b) => Number(b.triggered) - Number(a.triggered)),
+    [result.guardrails],
+  );
 
   const applyPreset = (preset: PresetMeta) => {
     setInput((prev) => ({
@@ -531,228 +459,128 @@ export function CodecModule({
   const activeSnippetCode = snippets[snippetTab];
   const canaryPresets = PRESET_LIST.filter((p) => p.group === 'canary');
   const primitivePresets = PRESET_LIST.filter((p) => p.group === 'primitive');
+  const outPrefix = `${uid}-out`;
+  const snipPrefix = `${uid}-snip`;
+  const decPrefix = `${uid}-dec`;
 
   return (
-    <section aria-labelledby={`${uid}-heading`} className="stack">
-      {/* Direction Switcher & Presets Panel */}
-      <div className={`panel ${isEvmOrigin ? 'panel-evm' : 'panel-michelson'}`}>
-        <div className="panel-header">
-          <div>
-            <h2 id={`${uid}-heading`} className="panel-title">
-              <Binary size={16} className="text-michelson" aria-hidden="true" />
-              Module 1 · Dual-Runtime Micheline Codec &amp; Guardrailed Snippet Workbench
-            </h2>
-            <p className="panel-subtitle">
-              100% deterministic client-side binary Micheline encoder, Horus 8.0 / v0.11 gateway
-              calldata builder, revert decoder, and trap-hardened code generator.
-            </p>
-          </div>
-          <div className="row">
-            <span className="badge badge-ok">ZERO-RPC · INSTANT</span>
-            <span className={`badge ${isEvmOrigin ? 'badge-evm' : 'badge-michelson'}`}>
-              {network.label} · {isViewCall ? 'VIEW' : 'ATOMIC WRITE'}
-            </span>
-          </div>
-        </div>
+    <section aria-labelledby={`${uid}-heading`}>
+      <h2 id={`${uid}-heading`} className="sr-only">
+        Module 1 · Encode &amp; Snippets
+      </h2>
 
-        <div className="panel-body stack">
-          {/* 4-Way Direction Switcher */}
-          <div
-            role="radiogroup"
-            aria-label="Cross-runtime call direction"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(215px, 1fr))',
-              gap: '10px',
-            }}
-          >
-            {DIRECTION_OPTIONS.map((dir) => {
-              const active = input.callDirection === dir.id;
-              const isEvm = dir.fromRuntime === 'evm';
-              return (
-                <button
-                  key={dir.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() =>
-                    setInput((prev) => ({
-                      ...prev,
-                      callDirection: dir.id,
-                      ...(dir.id === 'evm_view_michelson' && prev.entrypoint === 'record_ping'
-                        ? { entrypoint: 'get_state_digest' }
-                        : {}),
-                      ...(dir.id === 'michelson_to_evm' && prev.entrypoint === 'record_ping'
-                        ? { entrypoint: 'onMichelsonCallback(uint256,uint256)' }
-                        : {}),
-                      ...(dir.id === 'michelson_staticcall_evm' &&
-                      prev.entrypoint === 'record_ping'
-                        ? { entrypoint: 'echoView(uint256)' }
-                        : {}),
-                    }))
-                  }
-                  style={{
-                    textAlign: 'left',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    cursor: 'pointer',
-                    background: active
-                      ? isEvm
-                        ? 'var(--evm-soft)'
-                        : 'var(--michelson-soft)'
-                      : 'var(--bg-elevated)',
-                    border: `1px solid ${
-                      active
-                        ? isEvm
-                          ? 'var(--evm)'
-                          : 'var(--michelson)'
-                        : 'var(--border-strong)'
-                    }`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '3px',
-                    transition: 'border-color 140ms ease, background-color 140ms ease',
-                  }}
-                >
-                  <div className="row-between" style={{ gap: '6px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-strong)' }}>
-                      {dir.label}
-                    </span>
-                    <ArrowRightLeft
-                      size={13}
-                      className={active ? (isEvm ? 'text-evm' : 'text-michelson') : 'muted'}
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <span
-                    className={`mono ${active ? (isEvm ? 'text-evm' : 'text-michelson') : 'muted'}`}
-                    style={{ fontSize: '11.5px' }}
-                  >
-                    {dir.sublabel}
-                  </span>
-                </button>
-              );
-            })}
+      <div className="workbench">
+        {/* ============================ STEP 1 ============================ */}
+        <div className="card">
+          <div className="card-header">
+            <StepTitle
+              n={1}
+              title="Direction & inputs"
+              hint="Pick a call direction, start from a preset, then fine-tune values."
+            />
+            <span className="pill pill-muted">Runs locally · zero RPC</span>
           </div>
 
-          {/* Preset Chips */}
-          <div className="stack-sm">
-            <div className="row" style={{ gap: '6px' }}>
-              <span
-                className="mono text-evm"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  marginRight: '4px',
-                }}
-              >
-                <Sparkles size={12} aria-hidden="true" />
-                NACBench Canary
+          <div className="card-body stack">
+            {/* Direction */}
+            <div className="form-section">
+              <span className="section-label" id={`${uid}-dir-label`}>
+                Call direction
               </span>
-              {canaryPresets.map((preset) => {
-                const selected = input.preset === preset.id;
-                return (
+              <div
+                role="radiogroup"
+                aria-labelledby={`${uid}-dir-label`}
+                className="direction-grid"
+              >
+                {DIRECTION_OPTIONS.map((dir) => {
+                  const active = input.callDirection === dir.id;
+                  return (
+                    <button
+                      key={dir.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className="direction-option"
+                      onClick={() =>
+                        setInput((prev) => ({
+                          ...prev,
+                          callDirection: dir.id,
+                          ...(dir.id === 'evm_view_michelson' && prev.entrypoint === 'record_ping'
+                            ? { entrypoint: 'get_state_digest' }
+                            : {}),
+                          ...(dir.id === 'michelson_to_evm' && prev.entrypoint === 'record_ping'
+                            ? { entrypoint: 'onMichelsonCallback(uint256,uint256)' }
+                            : {}),
+                          ...(dir.id === 'michelson_staticcall_evm' &&
+                          prev.entrypoint === 'record_ping'
+                            ? { entrypoint: 'echoView(uint256)' }
+                            : {}),
+                        }))
+                      }
+                    >
+                      <span className="direction-label">
+                        {dir.label}
+                        {dir.isView && <span className="pill pill-sm pill-muted">view</span>}
+                      </span>
+                      <span className="direction-sub">{dir.sublabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Presets */}
+            <div className="form-section">
+              <span className="section-label">Start from a preset</span>
+              <div className="chip-row" role="group" aria-label="Canary presets">
+                <span className="chip-row-label">Canary</span>
+                {canaryPresets.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
+                    className="chip"
+                    aria-pressed={input.preset === preset.id}
                     onClick={() => applyPreset(preset)}
-                    className={`btn btn-sm ${selected ? 'btn-evm' : ''}`}
                   >
                     <span className="mono">{preset.label}</span>
-                    <span className="muted" style={{ fontSize: '10.5px', fontWeight: 500 }}>
-                      {preset.tag}
-                    </span>
+                    <span className="chip-meta">{preset.tag}</span>
                   </button>
-                );
-              })}
-            </div>
-
-            <div className="row" style={{ gap: '6px' }}>
-              <span
-                className="mono text-michelson"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  marginRight: '4px',
-                }}
-              >
-                <Layers size={12} aria-hidden="true" />
-                Primitives
-              </span>
-              {primitivePresets.map((preset) => {
-                const selected = input.preset === preset.id;
-                return (
+                ))}
+              </div>
+              <div className="chip-row" role="group" aria-label="Primitive presets">
+                <span className="chip-row-label">Primitives</span>
+                {primitivePresets.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
+                    className="chip"
+                    aria-pressed={input.preset === preset.id}
                     onClick={() => applyPreset(preset)}
-                    className={`btn btn-sm ${selected ? 'btn-michelson' : ''}`}
                   >
                     <span className="mono">{preset.label}</span>
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Split Workbench: Structured Inputs ↔ Encoded Output & Decoders */}
-      <div className="grid-2" style={{ alignItems: 'start' }}>
-        {/* Left: Structured Call Specification */}
-        <div className="panel">
-          <div className="panel-header">
-            <h3 className="panel-title">
-              <Cpu size={15} className="text-evm" aria-hidden="true" />
-              Structured Call Specification
-            </h3>
-            <span className="badge badge-muted">preset: {input.preset}</span>
-          </div>
-
-          <div className="panel-body stack">
-            {/* Target & Entrypoint */}
-            <fieldset
-              style={{
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px',
-                margin: 0,
-                background: 'var(--bg-elevated)',
-              }}
-              className="stack-sm"
-            >
-              <legend
-                className="mono muted"
-                style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 6px' }}
-              >
-                Target &amp; Entrypoint Routing
-              </legend>
+            {/* Target & entrypoint */}
+            <div className="form-section">
+              <span className="section-label">Target &amp; entrypoint</span>
 
               {isEvmOrigin ? (
                 <div className="field">
                   <div className="field-label">
-                    <label htmlFor={`${uid}-kt1`}>Michelson Destination (KT1 / tz1)</label>
+                    <label htmlFor={`${uid}-kt1`}>
+                      Michelson destination <span className="muted">(KT1 / tz1)</span>
+                    </label>
                     <button
                       type="button"
-                      className="btn btn-sm"
+                      className="btn btn-ghost btn-sm"
                       onClick={() =>
-                        setInput((prev) => ({
-                          ...prev,
-                          kt1Target: network.michelson.evmGateway,
-                        }))
+                        setInput((prev) => ({ ...prev, kt1Target: network.michelson.evmGateway }))
                       }
                     >
-                      Use Gateway KT1
+                      Use gateway KT1
                     </button>
                   </div>
                   <input
@@ -762,39 +590,38 @@ export function CodecModule({
                     onChange={(e) => setInput((prev) => ({ ...prev, kt1Target: e.target.value }))}
                     placeholder="KT1..."
                     spellCheck={false}
+                    aria-invalid={kt1IsTz4 || (!!input.kt1Target.trim() && !kt1Valid)}
                   />
                   {kt1IsTz4 && (
-                    <div role="alert" className="alert alert-danger" style={{ padding: '7px 10px' }}>
+                    <div role="alert" className="alert alert-danger">
                       <ShieldAlert size={14} aria-hidden="true" />
                       <span>
-                        BLS <code className="mono">tz4</code> addresses are not supported on Tezos X
-                        Michelson interface yet.
+                        BLS <code>tz4</code> addresses are not supported on the Tezos X Michelson
+                        interface yet.
                       </span>
                     </div>
                   )}
                   {!kt1IsTz4 && input.kt1Target.trim() && !kt1Valid && (
                     <span className="field-hint text-warn">
-                      Expected a 36-char Base58Check <code className="mono">KT1</code>/
-                      <code className="mono">tz1</code>/<code className="mono">tz2</code>/
-                      <code className="mono">tz3</code> address.
+                      Expected a 36-char Base58Check <code>KT1</code>/<code>tz1</code>/
+                      <code>tz2</code>/<code>tz3</code> address.
                     </span>
                   )}
                 </div>
               ) : (
                 <div className="field">
                   <div className="field-label">
-                    <label htmlFor={`${uid}-evm`}>EVM Destination (0x…)</label>
+                    <label htmlFor={`${uid}-evm`}>
+                      EVM destination <span className="muted">(0x…)</span>
+                    </label>
                     <button
                       type="button"
-                      className="btn btn-sm"
+                      className="btn btn-ghost btn-sm"
                       onClick={() =>
-                        setInput((prev) => ({
-                          ...prev,
-                          evmTarget: DEFAULT_FIXTURES.freeRoutePoolEvm,
-                        }))
+                        setInput((prev) => ({ ...prev, evmTarget: DEFAULT_FIXTURES.freeRoutePoolEvm }))
                       }
                     >
-                      Use Free-Route Pool
+                      Use Free-Route pool
                     </button>
                   </div>
                   <input
@@ -804,10 +631,11 @@ export function CodecModule({
                     onChange={(e) => setInput((prev) => ({ ...prev, evmTarget: e.target.value }))}
                     placeholder="0x..."
                     spellCheck={false}
+                    aria-invalid={!!input.evmTarget.trim() && !evmValid}
                   />
                   {input.evmTarget.trim() && !evmValid && (
                     <span className="field-hint text-danger">
-                      Expected a 20-byte <code className="mono">0x</code>-prefixed EVM address.
+                      Expected a 20-byte <code>0x</code>-prefixed EVM address.
                     </span>
                   )}
                 </div>
@@ -816,12 +644,12 @@ export function CodecModule({
               <div className="field">
                 <label htmlFor={`${uid}-ep`} className="field-label">
                   {isEvmOrigin
-                    ? isViewCall
-                      ? 'Michelson On-Chain View Name'
-                      : 'Michelson Entrypoint (without %)'
+                    ? input.callDirection === 'evm_view_michelson'
+                      ? 'Michelson on-chain view name'
+                      : 'Michelson entrypoint (without %)'
                     : input.callDirection === 'michelson_to_evm'
-                      ? 'EVM Signature String (%call_evm 2nd field)'
-                      : 'EVM View Signature (selector hashed for staticcall_evm)'}
+                      ? 'EVM signature (%call_evm 2nd field)'
+                      : 'EVM view signature (selector hashed for staticcall_evm)'}
                 </label>
                 <input
                   id={`${uid}-ep`}
@@ -832,17 +660,14 @@ export function CodecModule({
                   spellCheck={false}
                 />
                 {!isEvmOrigin && (
-                  <div className="row" style={{ gap: '5px', marginTop: '4px' }}>
-                    <span className="mono muted" style={{ fontSize: '10.5px' }}>
-                      ABI PRESETS:
-                    </span>
+                  <div className="chip-row" role="group" aria-label="ABI signature presets">
+                    <span className="chip-row-label">ABI presets</span>
                     {EVM_SIGNATURE_PRESETS.map((preset) => (
                       <button
                         key={preset.sig}
                         type="button"
-                        className={`btn btn-sm ${
-                          input.entrypoint.trim() === preset.sig ? 'btn-michelson' : ''
-                        }`}
+                        className="chip"
+                        aria-pressed={input.entrypoint.trim() === preset.sig}
                         onClick={() =>
                           setInput((prev) => ({
                             ...prev,
@@ -857,96 +682,87 @@ export function CodecModule({
                   </div>
                 )}
               </div>
-            </fieldset>
+            </div>
 
-            {/* Typed Payload Fields */}
-            <fieldset
-              style={{
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px',
-                margin: 0,
-                background: 'var(--bg-elevated)',
-              }}
-              className="stack-sm"
-            >
-              <legend
-                className="mono muted"
-                style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 6px' }}
-              >
-                {isEvmOrigin ? 'Typed Micheline Parameter Payload' : 'Typed Solidity ABI Arguments'}
-              </legend>
+            {/* Typed payload */}
+            <div className="form-section">
+              <span className="section-label">
+                {isEvmOrigin ? 'Micheline parameter' : 'Solidity ABI arguments'}
+              </span>
 
               {!isEvmOrigin && parsedEvmSig && !parsedEvmSig.ok && (
-                <div role="alert" className="alert alert-danger" style={{ padding: '8px 10px' }}>
+                <div role="alert" className="alert alert-danger">
                   <ShieldAlert size={14} aria-hidden="true" />
                   <span>{parsedEvmSig.error}</span>
                 </div>
               )}
 
               {!isEvmOrigin && parsedEvmSig && parsedEvmSig.ok && (
-                <div className="stack-sm">
+                <>
                   {parsedEvmSig.types.length === 0 ? (
-                    <p className="mono muted" style={{ margin: 0, fontSize: '12px' }}>
-                      <code className="mono">{parsedEvmSig.canonicalSig}</code> takes zero ABI
-                      arguments.
+                    <p className="field-hint" style={{ margin: 0 }}>
+                      <code>{parsedEvmSig.canonicalSig}</code> takes zero ABI arguments.
                     </p>
                   ) : (
-                    parsedEvmSig.types.map((paramType, idx) => {
-                      const currentVal = input.evmArgs?.[idx] ?? '';
-                      const placeholder =
-                        paramType === 'address'
-                          ? DEFAULT_FIXTURES.deadEvm
-                          : paramType === 'bool'
-                            ? 'true'
-                            : paramType === 'bytes32'
-                              ? '0x0000…'
-                              : paramType === 'bytes'
-                                ? '0xdeadbeef'
-                                : paramType === 'string'
-                                  ? 'hello-nac'
-                                  : paramType === 'int256'
-                                    ? '-42'
-                                    : idx === 0
-                                      ? '42'
-                                      : '1';
-                      return (
-                        <div key={`${parsedEvmSig.canonicalSig}-${idx}`} className="field">
-                          <label htmlFor={`${uid}-evmarg-${idx}`} className="field-label">
-                            Arg #{idx + 1} · <code className="mono text-evm">{paramType}</code>
-                          </label>
-                          <input
-                            id={`${uid}-evmarg-${idx}`}
-                            className="input mono"
-                            value={currentVal}
-                            onChange={(e) => {
-                              const nextVal = e.target.value;
-                              setInput((prev) => {
-                                const nextArgs = [...(prev.evmArgs ?? [])];
-                                nextArgs[idx] = nextVal;
-                                return { ...prev, evmArgs: nextArgs };
-                              });
-                            }}
-                            placeholder={placeholder}
-                            spellCheck={false}
-                          />
-                        </div>
-                      );
-                    })
+                    <div className="grid-2">
+                      {parsedEvmSig.types.map((paramType, idx) => {
+                        const currentVal = input.evmArgs?.[idx] ?? '';
+                        const placeholder =
+                          paramType === 'address'
+                            ? DEFAULT_FIXTURES.deadEvm
+                            : paramType === 'bool'
+                              ? 'true'
+                              : paramType === 'bytes32'
+                                ? '0x0000…'
+                                : paramType === 'bytes'
+                                  ? '0xdeadbeef'
+                                  : paramType === 'string'
+                                    ? 'hello-nac'
+                                    : paramType === 'int256'
+                                      ? '-42'
+                                      : idx === 0
+                                        ? '42'
+                                        : '1';
+                        return (
+                          <div key={`${parsedEvmSig.canonicalSig}-${idx}`} className="field">
+                            <label htmlFor={`${uid}-evmarg-${idx}`} className="field-label">
+                              <span>
+                                Arg {idx + 1} <code className="muted">{paramType}</code>
+                              </span>
+                            </label>
+                            <input
+                              id={`${uid}-evmarg-${idx}`}
+                              className="input mono"
+                              value={currentVal}
+                              onChange={(e) => {
+                                const nextVal = e.target.value;
+                                setInput((prev) => {
+                                  const nextArgs = [...(prev.evmArgs ?? [])];
+                                  nextArgs[idx] = nextVal;
+                                  return { ...prev, evmArgs: nextArgs };
+                                });
+                              }}
+                              placeholder={placeholder}
+                              spellCheck={false}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               {isEvmOrigin && input.preset === 'unit' && (
-                <p className="mono muted" style={{ margin: 0, fontSize: '12px' }}>
-                  Unit primitive (<code className="mono">0x030b</code>) carries zero arguments.
+                <p className="field-hint" style={{ margin: 0 }}>
+                  Unit primitive (<code>0x030b</code>) carries zero arguments.
                 </p>
               )}
 
               {isEvmOrigin && fieldVis.showString && (
                 <div className="field">
                   <label htmlFor={`${uid}-str`} className="field-label">
-                    UTF-8 String Value
+                    UTF-8 string
                   </label>
                   <input
                     id={`${uid}-str`}
@@ -961,7 +777,9 @@ export function CodecModule({
               {isEvmOrigin && fieldVis.showNat && (
                 <div className="field">
                   <label htmlFor={`${uid}-nat`} className="field-label">
-                    Unsigned Natural (nat ≥ 0)
+                    <span>
+                      Natural <span className="muted">(nat ≥ 0)</span>
+                    </span>
                   </label>
                   <input
                     id={`${uid}-nat`}
@@ -977,7 +795,9 @@ export function CodecModule({
               {isEvmOrigin && fieldVis.showInt && (
                 <div className="field">
                   <label htmlFor={`${uid}-int`} className="field-label">
-                    Signed Integer (int, Zarith)
+                    <span>
+                      Signed integer <span className="muted">(int, Zarith)</span>
+                    </span>
                   </label>
                   <input
                     id={`${uid}-int`}
@@ -992,7 +812,9 @@ export function CodecModule({
               {isEvmOrigin && fieldVis.showBytes && (
                 <div className="field">
                   <label htmlFor={`${uid}-bytes`} className="field-label">
-                    Raw Hex Bytes (0x…)
+                    <span>
+                      Raw bytes <span className="muted">(0x…)</span>
+                    </span>
                   </label>
                   <input
                     id={`${uid}-bytes`}
@@ -1008,15 +830,17 @@ export function CodecModule({
               {isEvmOrigin && fieldVis.showAddress && (
                 <div className="field">
                   <div className="field-label">
-                    <label htmlFor={`${uid}-addr`}>Michelson Address (tz1/2/3 or KT1)</label>
+                    <label htmlFor={`${uid}-addr`}>
+                      Michelson address <span className="muted">(tz1/2/3 or KT1)</span>
+                    </label>
                     <button
                       type="button"
-                      className="btn btn-sm"
+                      className="btn btn-ghost btn-sm"
                       onClick={() =>
                         setInput((prev) => ({ ...prev, addressVal: DEFAULT_FIXTURES.aliceTz1 }))
                       }
                     >
-                      Alice tz1
+                      Use Alice tz1
                     </button>
                   </div>
                   <input
@@ -1026,13 +850,12 @@ export function CodecModule({
                     onChange={(e) => setInput((prev) => ({ ...prev, addressVal: e.target.value }))}
                     placeholder="tz1..."
                     spellCheck={false}
+                    aria-invalid={addrFieldIsTz4}
                   />
                   {addrFieldIsTz4 && (
                     <span role="alert" className="field-hint text-danger">
-                      BLS <code className="mono">tz4</code> is unsupported on Tezos X Michelson
-                      interface — use <code className="mono">tz1</code>,{' '}
-                      <code className="mono">tz2</code>, <code className="mono">tz3</code>, or{' '}
-                      <code className="mono">KT1</code>.
+                      BLS <code>tz4</code> is unsupported on the Tezos X Michelson interface — use{' '}
+                      <code>tz1</code>, <code>tz2</code>, <code>tz3</code>, or <code>KT1</code>.
                     </span>
                   )}
                 </div>
@@ -1041,7 +864,9 @@ export function CodecModule({
               {isEvmOrigin && fieldVis.showMutez && (
                 <div className="field">
                   <label htmlFor={`${uid}-mutez`} className="field-label">
-                    Embedded Mutez (1 XTZ = 1,000,000 mutez)
+                    <span>
+                      Embedded mutez <span className="muted">(1 XTZ = 1,000,000)</span>
+                    </span>
                   </label>
                   <input
                     id={`${uid}-mutez`}
@@ -1053,133 +878,85 @@ export function CodecModule({
                   />
                 </div>
               )}
-            </fieldset>
+            </div>
 
-            {/* Value 10^12 Dust & Gas Controls */}
-            <fieldset
-              style={{
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px',
-                margin: 0,
-                background: 'var(--bg-elevated)',
-              }}
-              className="stack-sm"
-            >
-              <legend
-                className="mono muted"
-                style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 6px' }}
-              >
-                Value Alignment (10¹² Wei ↔ Mutez) &amp; Gas Caps
-              </legend>
+            {/* Value & gas */}
+            <div className="form-section">
+              <span className="section-label">Value (10¹² wei ↔ mutez) &amp; gas</span>
 
               <div className="field">
-                <div className="field-label">
-                  <label htmlFor={`${uid}-wei`}>Attached EVM Value (wei)</label>
-                  <div className="row" style={{ gap: '4px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setInput((prev) => ({ ...prev, valueWei: '0' }))}
-                    >
-                      0
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() =>
-                        setInput((prev) => ({ ...prev, valueWei: '1000000000000' }))
-                      }
-                    >
-                      1 mutez (10¹²)
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() =>
-                        setInput((prev) => ({ ...prev, valueWei: '1000000000000000' }))
-                      }
-                    >
-                      0.001 XTZ
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      onClick={injectOneWeiDust}
-                    >
-                      +1 wei dust
-                    </button>
-                  </div>
-                </div>
+                <label htmlFor={`${uid}-wei`} className="field-label">
+                  <span>
+                    Attached EVM value <span className="muted">(wei)</span>
+                  </span>
+                </label>
                 <input
                   id={`${uid}-wei`}
                   className="input mono"
                   inputMode="numeric"
                   value={input.valueWei}
                   onChange={(e) => setInput((prev) => ({ ...prev, valueWei: e.target.value }))}
-                  style={{ borderColor: !result.mutezAligned ? 'var(--danger)' : undefined }}
+                  aria-invalid={!result.mutezAligned}
+                  aria-describedby={`${uid}-wei-out`}
                 />
+                <div className="chip-row" role="group" aria-label="Value shortcuts">
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setInput((prev) => ({ ...prev, valueWei: '0' }))}
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setInput((prev) => ({ ...prev, valueWei: '1000000000000' }))}
+                  >
+                    1 mutez (10¹²)
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setInput((prev) => ({ ...prev, valueWei: '1000000000000000' }))}
+                  >
+                    0.001 XTZ
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={injectOneWeiDust}
+                    title="Test the 10¹² dust trap"
+                  >
+                    +1 wei dust (test trap)
+                  </button>
+                </div>
 
-                <output
-                  htmlFor={`${uid}-wei`}
-                  aria-live="polite"
-                  className={`alert ${result.mutezAligned ? 'alert-ok' : 'alert-danger'}`}
-                  style={{ alignItems: 'center', justifyContent: 'space-between', padding: '8px 11px' }}
-                >
+                <output id={`${uid}-wei-out`} htmlFor={`${uid}-wei`} aria-live="polite">
                   {result.mutezAligned ? (
-                    <span className="row" style={{ gap: '6px' }}>
-                      <ShieldCheck size={14} aria-hidden="true" />
+                    <span className="output-line">
+                      <ShieldCheck size={13} className="text-ok" aria-hidden="true" />
                       <span className="mono">
-                        Aligned: {weiMetrics.mutez} mutez ({weiMetrics.xtz} XTZ) · dust = 0 wei
+                        Aligned · {weiMetrics.mutez} mutez ({weiMetrics.xtz} XTZ) · 0 wei dust
                       </span>
                     </span>
                   ) : (
-                    <>
-                      <span className="row" style={{ gap: '6px' }}>
-                        <ShieldAlert size={14} aria-hidden="true" />
-                        <span className="mono">
-                          DUST REMAINDER: {result.dustRemainderWei} wei (not divisible by 10¹²)
-                        </span>
+                    <span className="alert alert-danger" style={{ alignItems: 'center' }}>
+                      <ShieldAlert size={14} aria-hidden="true" />
+                      <span className="mono" style={{ flex: 1 }}>
+                        Dust remainder: {result.dustRemainderWei} wei (not divisible by 10¹²)
                       </span>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={snapWeiToMutezGrid}
-                      >
+                      <button type="button" className="btn btn-sm" onClick={snapWeiToMutezGrid}>
                         Snap to 10¹² grid
                       </button>
-                    </>
+                    </span>
                   )}
                 </output>
               </div>
 
               <div className="field">
-                <div className="field-label">
-                  <label htmlFor={`${uid}-gas`}>EVM Gas Cap</label>
-                  <div className="row" style={{ gap: '4px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '3000000' }))}
-                    >
-                      3M Transfer
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '5000000' }))}
-                    >
-                      5M NAC Call
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-evm"
-                      onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '1000000' }))}
-                    >
-                      1M OOG Probe
-                    </button>
-                  </div>
-                </div>
+                <label htmlFor={`${uid}-gas`} className="field-label">
+                  EVM gas cap
+                </label>
                 <input
                   id={`${uid}-gas`}
                   className="input mono"
@@ -1187,353 +964,382 @@ export function CodecModule({
                   value={input.evmGasCap}
                   onChange={(e) => setInput((prev) => ({ ...prev, evmGasCap: e.target.value }))}
                 />
+                <div className="chip-row" role="group" aria-label="Gas cap shortcuts">
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={input.evmGasCap === '3000000'}
+                    onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '3000000' }))}
+                  >
+                    3M transfer
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={input.evmGasCap === '5000000'}
+                    onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '5000000' }))}
+                  >
+                    5M NAC call
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={input.evmGasCap === '1000000'}
+                    onClick={() => setInput((prev) => ({ ...prev, evmGasCap: '1000000' }))}
+                  >
+                    1M OOG probe
+                  </button>
+                </div>
                 {gasNum < 3_000_000 ? (
-                  <span className="field-hint text-warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <span className="output-line text-warn">
                     <Flame size={13} aria-hidden="true" />
-                    Below 3,000,000 EVM gas NAC floor — high risk of{' '}
-                    <code className="mono">429 Too Many Requests: out of gas</code>.
+                    Below the 3,000,000 EVM gas NAC floor — high risk of{' '}
+                    <code>429 Too Many Requests: out of gas</code>.
                   </span>
                 ) : (
-                  <span className="field-hint text-ok" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                    <Zap size={13} aria-hidden="true" />
-                    Meets NAC v0.11 EVM gas floor ({gasNum.toLocaleString()} gas).
+                  <span className="output-line">
+                    <Check size={13} aria-hidden="true" />
+                    Meets the NAC v0.11 EVM gas floor ({gasNum.toLocaleString()} gas).
                   </span>
                 )}
                 <span className="field-hint">
                   Michelson hard op cap on {network.label}:{' '}
-                  <strong className="mono text-michelson">
+                  <strong className="mono strong">
                     {network.michelson.hardGasLimitPerOperation.toLocaleString()}
                   </strong>{' '}
-                  Michelson gas units (translated from EVM gas via kernel coefficient).
+                  gas units (translated from EVM gas via the kernel coefficient).
                 </span>
               </div>
-            </fieldset>
+            </div>
           </div>
         </div>
 
-        {/* Right: Encoded Output & Collapsible Decoder */}
-        <div className="stack">
-          <div className="panel">
-            <div className="panel-header">
-              <h3 className="panel-title">
-                <Terminal size={15} className="text-michelson" aria-hidden="true" />
-                Live Encoded Telemetry
-              </h3>
-              <div className="row" style={{ gap: '6px' }}>
-                <span className="badge badge-michelson">{result.michelineByteLength} bytes</span>
-                <span className="badge badge-evm">selector: {result.abiSelector || 'N/A'}</span>
-              </div>
-            </div>
-
-            <div className="panel-body stack">
-              {!result.ok && result.error && (
-                <div role="alert" className="alert alert-danger">
-                  <ShieldAlert size={15} aria-hidden="true" />
-                  <span>
-                    <strong>Encoding Error:</strong> {result.error}
-                  </span>
-                </div>
-              )}
-
-              <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label">Binary Micheline Hex (0x05-Stripped)</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => handleCopy('micheline', result.michelineHex)}
-                    disabled={!result.michelineHex}
-                  >
-                    {copiedKey === 'micheline' ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedKey === 'micheline' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-                <pre
-                  className="code-block text-michelson"
-                  style={{ maxHeight: '105px', overflowY: 'auto' }}
-                >
-                  {result.michelineHex || '—'}
-                </pre>
-              </div>
-
-              <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label">Round-Trip Decoded Micheline Expression</span>
-                  <span className="badge badge-ok">encode → decode OK</span>
-                </div>
-                <pre
-                  className="code-block pre"
-                  style={{ maxHeight: '150px', overflowY: 'auto' }}
-                >
-                  {result.decodedExpression !== undefined
-                    ? JSON.stringify(result.decodedExpression, null, 2)
-                    : '—'}
-                </pre>
-              </div>
-
-              <div className="stack-sm">
-                <div className="row-between">
-                  <span className="field-label">
-                    Gateway Calldata ({isEvmOrigin ? network.evm.precompile : network.michelson.evmGateway})
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => handleCopy('calldata', result.gatewayCalldataHex)}
-                    disabled={!result.gatewayCalldataHex}
-                  >
-                    {copiedKey === 'calldata' ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedKey === 'calldata' ? 'Copied' : 'Copy Calldata'}
-                  </button>
-                </div>
-                <pre
-                  className="code-block text-evm"
-                  style={{ maxHeight: '130px', overflowY: 'auto' }}
-                >
-                  {result.gatewayCalldataHex || '—'}
-                </pre>
-              </div>
+        {/* ============================ STEP 2 ============================ */}
+        <div className="card workbench-sticky">
+          <div className="card-header">
+            <StepTitle n={2} title="Output & safe code" hint="Updates live as you edit step 1." />
+            <div className="row" style={{ gap: 6 }}>
+              <span className="pill mono">{result.michelineByteLength} B</span>
+              <span className="pill mono">sel {result.abiSelector || 'N/A'}</span>
             </div>
           </div>
 
-          {/* Collapsible Raw Hex & Revert Payload Decoder */}
-          <details className="panel" open>
-            <summary
-              className="panel-header"
-              style={{ cursor: 'pointer', listStyle: 'none' }}
-            >
-              <span className="panel-title">
-                <ChevronDown size={15} className="muted" aria-hidden="true" />
-                Raw Micheline Hex &amp; NAC Revert Payload Decoder
-              </span>
-              <span className="badge badge-muted">429 OOG · 404 · Error(string) · 0x05/Raw</span>
-            </summary>
+          <TabList<OutputTab>
+            idPrefix={outPrefix}
+            ariaLabel="Output views"
+            className="tabbar"
+            itemClassName="tabbar-item"
+            value={outputTab}
+            onChange={setOutputTab}
+            items={[
+              { id: 'payload', label: 'Encoded payload' },
+              { id: 'code', label: 'Copy-paste code' },
+              {
+                id: 'guardrails',
+                label: (
+                  <>
+                    Guardrails
+                    <span className={`tab-count ${triggeredCount > 0 ? 'warn' : ''}`}>
+                      {triggeredCount > 0
+                        ? `${triggeredCount}/${result.guardrails.length}`
+                        : result.guardrails.length}
+                    </span>
+                    {triggeredCount > 0 && (
+                      <span className="sr-only">{triggeredCount} need attention</span>
+                    )}
+                  </>
+                ),
+              },
+              { id: 'decoder', label: 'Hex & revert decoder' },
+            ]}
+          />
 
-            <div className="panel-body stack-sm">
-              <div className="subtabs" role="tablist" aria-label="Decoder mode">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={decoderTab === 'revert'}
-                  aria-controls={`${uid}-dec-revert`}
-                  id={`${uid}-tab-revert`}
-                  className={`subtab ${decoderTab === 'revert' ? 'subtab-active' : ''}`}
-                  onClick={() => setDecoderTab('revert')}
-                >
-                  Revert / 429 OOG Decoder
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={decoderTab === 'micheline'}
-                  aria-controls={`${uid}-dec-mich`}
-                  id={`${uid}-tab-mich`}
-                  className={`subtab ${decoderTab === 'micheline' ? 'subtab-active' : ''}`}
-                  onClick={() => setDecoderTab('micheline')}
-                >
-                  Raw Micheline Hex Decoder
-                </button>
-              </div>
+          <div className="card-body flush-top">
+            {outputTab === 'payload' && (
+              <TabPanel idPrefix={outPrefix} id="payload" className="stack">
+                {!result.ok && result.error && (
+                  <div role="alert" className="alert alert-danger">
+                    <ShieldAlert size={14} aria-hidden="true" />
+                    <span>
+                      <strong>Encoding error:</strong> {result.error}
+                    </span>
+                  </div>
+                )}
 
-              {decoderTab === 'revert' ? (
-                <div
-                  id={`${uid}-dec-revert`}
-                  role="tabpanel"
-                  aria-labelledby={`${uid}-tab-revert`}
-                  className="stack-sm"
-                >
-                  <div className="row" style={{ gap: '5px' }}>
-                    {REVERT_SAMPLES.map((sample) => (
+                <div className="stack-sm">
+                  <div className="code-head">
+                    <span className="code-label">
+                      Gateway calldata
+                      <span className="mono muted xsmall break-all">
+                        → {isEvmOrigin ? network.evm.precompile : network.michelson.evmGateway}
+                      </span>
+                    </span>
+                    <CopyButton
+                      primary
+                      label="Copy calldata"
+                      copied={copiedKey === 'calldata'}
+                      disabled={!result.gatewayCalldataHex}
+                      onClick={() => void handleCopy('calldata', result.gatewayCalldataHex)}
+                    />
+                  </div>
+                  <pre className="code-block" style={{ maxHeight: 150 }}>
+                    {result.gatewayCalldataHex || '—'}
+                  </pre>
+                </div>
+
+                <div className="stack-sm">
+                  <div className="code-head">
+                    <span className="code-label">
+                      Binary Micheline hex <span className="muted xsmall">0x05-stripped</span>
+                    </span>
+                    <CopyButton
+                      copied={copiedKey === 'micheline'}
+                      disabled={!result.michelineHex}
+                      onClick={() => void handleCopy('micheline', result.michelineHex)}
+                    />
+                  </div>
+                  <pre className="code-block" style={{ maxHeight: 110 }}>
+                    {result.michelineHex || '—'}
+                  </pre>
+                </div>
+
+                <div className="stack-sm">
+                  <div className="code-head">
+                    <span className="code-label">Round-trip decoded expression</span>
+                    {result.decodedExpression !== undefined && (
+                      <span className="output-line">
+                        <Check size={13} className="text-ok" aria-hidden="true" />
+                        encode → decode OK
+                      </span>
+                    )}
+                  </div>
+                  <pre className="code-block pre" style={{ maxHeight: 170 }}>
+                    {result.decodedExpression !== undefined
+                      ? JSON.stringify(result.decodedExpression, null, 2)
+                      : '—'}
+                  </pre>
+                </div>
+
+                <div className="row-between" style={{ paddingTop: 4 }}>
+                  <span className="field-hint">
+                    Next: grab ready-to-paste Solidity / octez.js / SmartPy with guardrails baked in.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setOutputTab('code')}
+                  >
+                    Copy-paste code
+                    <ArrowRight size={13} aria-hidden="true" />
+                  </button>
+                </div>
+              </TabPanel>
+            )}
+
+            {outputTab === 'code' && (
+              <TabPanel idPrefix={outPrefix} id="code" className="stack-sm">
+                <div className="row-between">
+                  <TabList<SnippetTab>
+                    idPrefix={snipPrefix}
+                    ariaLabel="Generated code language"
+                    value={snippetTab}
+                    onChange={setSnippetTab}
+                    items={[
+                      { id: 'solidity', label: 'Solidity 0.8.24' },
+                      { id: 'octezJs', label: 'octez.js v25.1' },
+                      { id: 'smartpy', label: 'SmartPy' },
+                      { id: 'cheatsheet', label: 'Selectors' },
+                    ]}
+                  />
+                  <CopyButton
+                    primary
+                    label="Copy snippet"
+                    copied={copiedKey === `snippet-${snippetTab}`}
+                    onClick={() => void handleCopy(`snippet-${snippetTab}`, activeSnippetCode)}
+                  />
+                </div>
+                <TabPanel idPrefix={snipPrefix} id={snippetTab}>
+                  <pre className="code-block pre" style={{ maxHeight: 520 }}>
+                    {activeSnippetCode}
+                  </pre>
+                </TabPanel>
+                <span className="field-hint">
+                  {snippetTab === 'octezJs' ? '@tezos-x/octez.js v25.1 · ' : ''}
+                  Generated from the current inputs with the v0.11 guardrails from the{' '}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ height: 'auto', padding: '0 2px', verticalAlign: 'baseline' }}
+                    onClick={() => setOutputTab('guardrails')}
+                  >
+                    Guardrails tab
+                  </button>{' '}
+                  baked in.
+                </span>
+              </TabPanel>
+            )}
+
+            {outputTab === 'guardrails' && (
+              <TabPanel idPrefix={outPrefix} id="guardrails" className="stack-sm">
+                <div className="row-between">
+                  <span className="output-line" aria-live="polite">
+                    {triggeredCount > 0 ? (
+                      <>
+                        <AlertTriangle size={13} className="text-warn" aria-hidden="true" />
+                        <span>
+                          <strong className="strong">
+                            {triggeredCount} of {result.guardrails.length}
+                          </strong>{' '}
+                          need attention for this input
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={13} className="text-ok" aria-hidden="true" />
+                        <span>
+                          All {result.guardrails.length} Tezos X v0.11 / Horus 8.0 guardrails pass
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="mono muted xsmall" title={NULL_SOURCE_ADDRESS}>
+                    Null cross-runtime SOURCE: {NULL_SOURCE_ADDRESS.slice(0, 12)}…
+                  </span>
+                </div>
+                <div className="guard-list">
+                  {sortedGuardrails.map((note) => (
+                    <GuardrailRow key={note.id} note={note} />
+                  ))}
+                </div>
+              </TabPanel>
+            )}
+
+            {outputTab === 'decoder' && (
+              <TabPanel idPrefix={outPrefix} id="decoder" className="stack-sm">
+                <TabList<DecoderTab>
+                  idPrefix={decPrefix}
+                  ariaLabel="Decoder mode"
+                  value={decoderTab}
+                  onChange={setDecoderTab}
+                  items={[
+                    { id: 'revert', label: 'Revert / 429 OOG' },
+                    { id: 'micheline', label: 'Raw Micheline hex' },
+                  ]}
+                />
+
+                {decoderTab === 'revert' ? (
+                  <TabPanel idPrefix={decPrefix} id="revert" className="stack-sm">
+                    <div className="chip-row" role="group" aria-label="Sample revert payloads">
+                      <span className="chip-row-label">Samples</span>
+                      {REVERT_SAMPLES.map((sample) => (
+                        <button
+                          key={sample.label}
+                          type="button"
+                          className="chip"
+                          aria-pressed={revertInput === sample.payload}
+                          onClick={() => setRevertInput(sample.payload)}
+                        >
+                          {sample.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uid}-revert-in`} className="field-label">
+                        Hex revert data (0x…) or gateway UTF-8 error
+                      </label>
+                      <textarea
+                        id={`${uid}-revert-in`}
+                        className="textarea mono"
+                        rows={3}
+                        value={revertInput}
+                        onChange={(e) => setRevertInput(e.target.value)}
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div
+                      aria-live="polite"
+                      className={`alert ${decodedRevert.status === 429 ? 'alert-danger' : 'alert-info'}`}
+                      style={{ flexDirection: 'column', gap: 6 }}
+                    >
+                      <div className="row" style={{ gap: 6 }}>
+                        <span
+                          className={`pill pill-sm ${decodedRevert.status === 429 ? 'pill-danger' : ''}`}
+                        >
+                          kind: {decodedRevert.kind}
+                        </span>
+                        {decodedRevert.status !== undefined && (
+                          <span className="pill pill-sm pill-danger">
+                            HTTP / NAC {decodedRevert.status}
+                          </span>
+                        )}
+                      </div>
+                      <strong className="strong" style={{ fontSize: 13 }}>
+                        {decodedRevert.summary}
+                      </strong>
+                      <code className="muted xsmall break-all">raw: {decodedRevert.raw}</code>
+                    </div>
+                  </TabPanel>
+                ) : (
+                  <TabPanel idPrefix={decPrefix} id="micheline" className="stack-sm">
+                    <div className="chip-row" role="group" aria-label="Sample Micheline hex">
+                      <span className="chip-row-label">Load</span>
                       <button
-                        key={sample.label}
                         type="button"
-                        className="btn btn-sm"
-                        onClick={() => setRevertInput(sample.payload)}
+                        className="chip"
+                        onClick={() => {
+                          if (result.michelineHex) setRawMichelineInput(result.michelineHex);
+                        }}
                       >
-                        {sample.label}
+                        Current encoded hex
                       </button>
-                    ))}
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`${uid}-revert-in`} className="field-label">
-                      Hex Revert Data (0x…) or Gateway UTF-8 Error
-                    </label>
-                    <textarea
-                      id={`${uid}-revert-in`}
-                      className="textarea mono"
-                      rows={3}
-                      value={revertInput}
-                      onChange={(e) => setRevertInput(e.target.value)}
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div
-                    className={`alert ${decodedRevert.status === 429 ? 'alert-danger' : 'alert-info'}`}
-                    style={{ flexDirection: 'column', gap: '6px' }}
-                  >
-                    <div className="row" style={{ gap: '6px' }}>
-                      <span className={`badge ${decodedRevert.status === 429 ? 'badge-danger' : 'badge-evm'}`}>
-                        kind: {decodedRevert.kind}
-                      </span>
-                      {decodedRevert.status !== undefined && (
-                        <span className="badge badge-danger">HTTP / NAC {decodedRevert.status}</span>
-                      )}
-                    </div>
-                    <strong style={{ color: 'var(--text-strong)', fontSize: '13px' }}>
-                      {decodedRevert.summary}
-                    </strong>
-                    <code className="mono muted" style={{ fontSize: '11.5px', wordBreak: 'break-all' }}>
-                      raw: {decodedRevert.raw}
-                    </code>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  id={`${uid}-dec-mich`}
-                  role="tabpanel"
-                  aria-labelledby={`${uid}-tab-mich`}
-                  className="stack-sm"
-                >
-                  <div className="row" style={{ gap: '5px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-michelson"
-                      onClick={() => {
-                        if (result.michelineHex) setRawMichelineInput(result.michelineHex);
-                      }}
-                    >
-                      Load Current Encoded Hex
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setRawMichelineInput('0x030b')}
-                    >
-                      Unit (0x030b)
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setRawMichelineInput('0x0707010000000470696e67002a')}
-                    >
-                      Pair(&quot;ping&quot;, 42)
-                    </button>
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`${uid}-raw-hex`} className="field-label">
-                      Raw Binary Micheline Hex (with or without 0x05 PACK prefix)
-                    </label>
-                    <textarea
-                      id={`${uid}-raw-hex`}
-                      className="textarea mono"
-                      rows={2}
-                      value={rawMichelineInput}
-                      onChange={(e) => setRawMichelineInput(e.target.value)}
-                      spellCheck={false}
-                    />
-                  </div>
-                  {decodedRawMicheline.ok ? (
-                    <div className="stack-sm">
-                      <span className="badge badge-ok" style={{ alignSelf: 'flex-start' }}>
-                        Decoded ({decodedRawMicheline.bytesRead ?? 0} bytes consumed)
-                      </span>
-                      <pre
-                        className="code-block pre"
-                        style={{ maxHeight: '140px', overflowY: 'auto' }}
+                      <button
+                        type="button"
+                        className="chip"
+                        onClick={() => setRawMichelineInput('0x030b')}
                       >
-                        {JSON.stringify(decodedRawMicheline.expression, null, 2)}
-                      </pre>
+                        Unit (0x030b)
+                      </button>
+                      <button
+                        type="button"
+                        className="chip"
+                        onClick={() => setRawMichelineInput('0x0707010000000470696e67002a')}
+                      >
+                        Pair(&quot;ping&quot;, 42)
+                      </button>
                     </div>
-                  ) : (
-                    <div role="alert" className="alert alert-danger">
-                      {decodedRawMicheline.error || 'Invalid binary Micheline hex'}
+                    <div className="field">
+                      <label htmlFor={`${uid}-raw-hex`} className="field-label">
+                        Raw binary Micheline hex (with or without 0x05 PACK prefix)
+                      </label>
+                      <textarea
+                        id={`${uid}-raw-hex`}
+                        className="textarea mono"
+                        rows={2}
+                        value={rawMichelineInput}
+                        onChange={(e) => setRawMichelineInput(e.target.value)}
+                        spellCheck={false}
+                      />
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </details>
-        </div>
-      </div>
-
-      {/* 6 v0.11 / Horus 8.0 Guardrails Strip */}
-      <div className="panel">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <ShieldCheck size={16} className="text-ok" aria-hidden="true" />
-            Tezos X v0.11 / Horus 8.0 Mandatory Guardrails ({result.guardrails.length})
-          </h3>
-          <div className="row">
-            <span className="mono muted" style={{ fontSize: '11.5px' }}>
-              Null cross-runtime SOURCE: {NULL_SOURCE_ADDRESS.slice(0, 12)}…
-            </span>
-            <span className={`badge ${triggeredCount > 0 ? 'badge-warn' : 'badge-ok'}`}>
-              {triggeredCount > 0 ? `${triggeredCount} active alert(s)` : 'All guardrails green'}
-            </span>
-          </div>
-        </div>
-        <div className="panel-body">
-          <div className="guardrail-list">
-            {result.guardrails.map((note) => (
-              <GuardrailCard key={note.id} note={note} />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Guardrail-Baked Copy-Paste Code Generator */}
-      <div className="panel">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <Code2 size={16} className="text-evm" aria-hidden="true" />
-            Guardrail-Baked Copy-Paste Code Generator
-          </h3>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => handleCopy(`snippet-${snippetTab}`, activeSnippetCode)}
-          >
-            {copiedKey === `snippet-${snippetTab}` ? <Check size={13} /> : <Copy size={13} />}
-            {copiedKey === `snippet-${snippetTab}` ? 'Copied to Clipboard' : 'Copy Snippet'}
-          </button>
-        </div>
-
-        <div className="panel-body stack-sm">
-          <div className="subtabs" role="tablist" aria-label="Generated code language">
-            {(
-              [
-                { id: 'solidity', label: 'Solidity 0.8.24' },
-                { id: 'octezJs', label: '@tezos-x/octez.js v25.1' },
-                { id: 'smartpy', label: 'SmartPy' },
-                { id: 'cheatsheet', label: 'Selector Cheat-Sheet' },
-              ] as { id: SnippetTab; label: string }[]
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`${uid}-snip-tab-${tab.id}`}
-                aria-selected={snippetTab === tab.id}
-                aria-controls={`${uid}-snip-panel`}
-                className={`subtab ${snippetTab === tab.id ? 'subtab-active' : ''}`}
-                onClick={() => setSnippetTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div
-            id={`${uid}-snip-panel`}
-            role="tabpanel"
-            aria-labelledby={`${uid}-snip-tab-${snippetTab}`}
-          >
-            <pre
-              className="code-block pre"
-              style={{ maxHeight: '380px', overflowY: 'auto' }}
-            >
-              {activeSnippetCode}
-            </pre>
+                    {decodedRawMicheline.ok ? (
+                      <div className="stack-sm">
+                        <span className="output-line">
+                          <Check size={13} className="text-ok" aria-hidden="true" />
+                          Decoded ({decodedRawMicheline.bytesRead ?? 0} bytes consumed)
+                        </span>
+                        <pre className="code-block pre" style={{ maxHeight: 200 }}>
+                          {JSON.stringify(decodedRawMicheline.expression, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div role="alert" className="alert alert-danger">
+                        <ShieldAlert size={14} aria-hidden="true" />
+                        <span>{decodedRawMicheline.error || 'Invalid binary Micheline hex'}</span>
+                      </div>
+                    )}
+                  </TabPanel>
+                )}
+              </TabPanel>
+            )}
           </div>
         </div>
       </div>
