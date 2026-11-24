@@ -21,9 +21,15 @@ import type {
   NetworkId,
 } from './lib/types';
 import {
+  clearWalletPreference,
   connectEvmWallet,
   discoverEip6963Providers,
+  loadWalletPreference,
+  onEip6963Announce,
+  restoreEvmWalletSession,
+  subscribeWalletEvents,
   switchEvmChain,
+  type ConnectedEvmWallet,
   type Eip1193Provider,
 } from './lib/wallets';
 
@@ -145,6 +151,7 @@ export default function App() {
   const [walletBusy, setWalletBusy] = useState<boolean>(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const activeProviderRef = useRef<Eip1193Provider | null>(null);
+  const walletUnsubRef = useRef<(() => void) | null>(null);
 
   const network = NETWORKS[networkId];
 
@@ -200,34 +207,36 @@ export default function App() {
     void refreshHealth();
   }, [refreshHealth]);
 
-  useEffect(() => {
-    const syncProviders = () => {
-      const found = discoverEip6963Providers();
-      setEvmWallet((prev) => ({
-        ...prev,
-        providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
-      }));
-    };
-    syncProviders();
-    const timer = window.setTimeout(syncProviders, 400);
-    return () => window.clearTimeout(timer);
+  const handleDisconnectEvm = useCallback(() => {
+    clearWalletPreference();
+    walletUnsubRef.current?.();
+    walletUnsubRef.current = null;
+    activeProviderRef.current = null;
+    setWalletError(null);
+    setEvmWallet((prev) => ({
+      ...prev,
+      address: null,
+      chainId: null,
+      providerName: null,
+    }));
   }, []);
 
-  const handleConnectEvm = useCallback(async (rdns?: string) => {
-    setWalletBusy(true);
-    setWalletError(null);
-    try {
-      const connected = await connectEvmWallet(rdns);
+  const bindConnectedWallet = useCallback(
+    (connected: ConnectedEvmWallet) => {
+      walletUnsubRef.current?.();
       activeProviderRef.current = connected.provider;
 
-      connected.provider.on?.('accountsChanged', (accounts: unknown) => {
-        const list = Array.isArray(accounts) ? (accounts as string[]) : [];
-        setEvmWallet((prev) => ({ ...prev, address: list[0] ?? null }));
-      });
-      connected.provider.on?.('chainChanged', (chainHex: unknown) => {
-        if (typeof chainHex === 'string') {
-          setEvmWallet((prev) => ({ ...prev, chainId: parseInt(chainHex, 16) }));
-        }
+      walletUnsubRef.current = subscribeWalletEvents(connected.provider, {
+        onAccountsChanged: (accounts) => {
+          if (accounts.length === 0) {
+            handleDisconnectEvm();
+            return;
+          }
+          setEvmWallet((prev) => ({ ...prev, address: accounts[0] }));
+        },
+        onChainChanged: (chainId) => {
+          setEvmWallet((prev) => ({ ...prev, chainId }));
+        },
       });
 
       const found = discoverEip6963Providers();
@@ -237,12 +246,72 @@ export default function App() {
         providerName: connected.providerName,
         providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
       });
-    } catch (err) {
-      setWalletError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setWalletBusy(false);
-    }
-  }, []);
+    },
+    [handleDisconnectEvm],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let restoring = false;
+
+    const syncProviders = () => {
+      const found = discoverEip6963Providers();
+      setEvmWallet((prev) => ({
+        ...prev,
+        providers: found.map((p) => ({ rdns: p.rdns, name: p.name, icon: p.icon })),
+      }));
+    };
+
+    const attemptSilentRestore = async () => {
+      if (cancelled || restoring || activeProviderRef.current || !loadWalletPreference()) return;
+      restoring = true;
+      try {
+        const restored = await restoreEvmWalletSession();
+        if (!cancelled && restored && loadWalletPreference()) {
+          bindConnectedWallet(restored);
+        }
+      } finally {
+        restoring = false;
+      }
+    };
+
+    syncProviders();
+    void attemptSilentRestore();
+
+    const unsubAnnounce = onEip6963Announce(() => {
+      syncProviders();
+      void attemptSilentRestore();
+    });
+
+    const timer = window.setTimeout(() => {
+      syncProviders();
+      void attemptSilentRestore();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      unsubAnnounce();
+      walletUnsubRef.current?.();
+      walletUnsubRef.current = null;
+    };
+  }, [bindConnectedWallet]);
+
+  const handleConnectEvm = useCallback(
+    async (rdns?: string) => {
+      setWalletBusy(true);
+      setWalletError(null);
+      try {
+        const connected = await connectEvmWallet(rdns);
+        bindConnectedWallet(connected);
+      } catch (err) {
+        setWalletError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setWalletBusy(false);
+      }
+    },
+    [bindConnectedWallet],
+  );
 
   const handleSwitchChain = useCallback(async () => {
     if (!activeProviderRef.current) return;
@@ -291,6 +360,7 @@ export default function App() {
         onSelectNetwork={setNetworkId}
         onRefreshHealth={() => void refreshHealth()}
         onConnectEvm={handleConnectEvm}
+        onDisconnectEvm={handleDisconnectEvm}
         onSwitchChain={handleSwitchChain}
       />
 

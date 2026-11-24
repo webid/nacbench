@@ -18,6 +18,26 @@ export interface DiscoveredProvider {
   provider: Eip1193Provider;
 }
 
+export interface WalletPreference {
+  rdns: string;
+  providerName: string;
+}
+
+export interface ConnectedEvmWallet {
+  address: string;
+  chainId: number;
+  providerName: string;
+  rdns: string;
+  provider: Eip1193Provider;
+}
+
+export interface WalletEventHandlers {
+  onAccountsChanged: (accounts: string[]) => void;
+  onChainChanged: (chainId: number) => void;
+}
+
+export const WALLET_STORAGE_KEY = 'nacbench:evmWallet';
+
 interface Eip6963AnnounceEvent extends Event {
   detail?: {
     info?: { rdns?: string; name?: string; icon?: string };
@@ -26,11 +46,73 @@ interface Eip6963AnnounceEvent extends Event {
 }
 
 const discoveredMap = new Map<string, DiscoveredProvider>();
-let listenerInitialized = false;
+const announceListeners = new Set<() => void>();
+let listenedWindow: Window | null = null;
+
+function safeGetLocalStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+  } catch {
+    // ignore restricted storage contexts
+  }
+  return null;
+}
+
+export function saveWalletPreference(pref: WalletPreference): void {
+  const storage = safeGetLocalStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(
+      WALLET_STORAGE_KEY,
+      JSON.stringify({ rdns: pref.rdns, providerName: pref.providerName }),
+    );
+  } catch {
+    // ignore storage quota/privacy mode errors
+  }
+}
+
+export function loadWalletPreference(): WalletPreference | null {
+  const storage = safeGetLocalStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(WALLET_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<WalletPreference>;
+    if (
+      typeof parsed?.rdns === 'string' &&
+      parsed.rdns.trim().length > 0 &&
+      typeof parsed?.providerName === 'string' &&
+      parsed.providerName.trim().length > 0
+    ) {
+      return { rdns: parsed.rdns.trim(), providerName: parsed.providerName.trim() };
+    }
+  } catch {
+    // ignore corrupt storage entries
+  }
+  return null;
+}
+
+export function clearWalletPreference(): void {
+  const storage = safeGetLocalStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(WALLET_STORAGE_KEY);
+  } catch {
+    // ignore restricted storage contexts
+  }
+}
+
+export function resetWalletDiscoveryForTests(): void {
+  discoveredMap.clear();
+  announceListeners.clear();
+  listenedWindow = null;
+}
 
 function ensureEip6963Listener(): void {
-  if (listenerInitialized || typeof window === 'undefined') return;
-  listenerInitialized = true;
+  if (typeof window === 'undefined' || listenedWindow === window) return;
+  listenedWindow = window;
   window.addEventListener('eip6963:announceProvider', (rawEvent: Event) => {
     const event = rawEvent as Eip6963AnnounceEvent;
     const info = event.detail?.info;
@@ -42,16 +124,23 @@ function ensureEip6963Listener(): void {
         icon: info.icon,
         provider,
       });
+      for (const listener of announceListeners) {
+        listener();
+      }
     }
   });
 }
 
-export function discoverEip6963Providers(): {
-  rdns: string;
-  name: string;
-  icon?: string;
-  provider: Eip1193Provider;
-}[] {
+export function onEip6963Announce(listener: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  ensureEip6963Listener();
+  announceListeners.add(listener);
+  return () => {
+    announceListeners.delete(listener);
+  };
+}
+
+export function discoverEip6963Providers(): DiscoveredProvider[] {
   if (typeof window === 'undefined') return [];
   ensureEip6963Listener();
   window.dispatchEvent(new Event('eip6963:requestProvider'));
@@ -68,12 +157,18 @@ export function discoverEip6963Providers(): {
   return list;
 }
 
-export async function connectEvmWallet(rdns?: string): Promise<{
-  address: string;
-  chainId: number;
-  providerName: string;
-  provider: Eip1193Provider;
-}> {
+function parseChainId(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const parsed = raw.startsWith('0x') || raw.startsWith('0X')
+      ? parseInt(raw, 16)
+      : parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+export async function connectEvmWallet(rdns?: string): Promise<ConnectedEvmWallet> {
   const providers = discoverEip6963Providers();
   const chosen = rdns
     ? providers.find((p) => p.rdns === rdns) ?? providers[0]
@@ -97,11 +192,87 @@ export async function connectEvmWallet(rdns?: string): Promise<{
     method: 'eth_chainId',
   })) as string;
 
+  saveWalletPreference({ rdns: chosen.rdns, providerName: chosen.name });
+
   return {
     address: accounts[0],
-    chainId: parseInt(chainHex, 16),
+    chainId: parseChainId(chainHex) ?? 0,
     providerName: chosen.name,
+    rdns: chosen.rdns,
     provider: chosen.provider,
+  };
+}
+
+/**
+ * Silently restore a previously connected EVM wallet session on reload.
+ * Uses `eth_accounts` (never `eth_requestAccounts`) so no wallet popup is triggered.
+ */
+export async function restoreEvmWalletSession(): Promise<ConnectedEvmWallet | null> {
+  const pref = loadWalletPreference();
+  if (!pref) return null;
+
+  const providers = discoverEip6963Providers();
+  let chosen = providers.find((p) => p.rdns === pref.rdns);
+
+  if (
+    !chosen &&
+    (pref.rdns === 'injected' || pref.rdns === 'injected.ethereum') &&
+    providers.length === 1
+  ) {
+    chosen = providers[0];
+  }
+
+  if (!chosen) return null;
+
+  try {
+    const accounts = (await chosen.provider.request({
+      method: 'eth_accounts',
+    })) as string[];
+
+    if (!Array.isArray(accounts) || accounts.length === 0 || typeof accounts[0] !== 'string') {
+      return null;
+    }
+
+    const chainHex = (await chosen.provider.request({
+      method: 'eth_chainId',
+    })) as string;
+
+    return {
+      address: accounts[0],
+      chainId: parseChainId(chainHex) ?? 0,
+      providerName: chosen.name,
+      rdns: chosen.rdns,
+      provider: chosen.provider,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeWalletEvents(
+  provider: Eip1193Provider,
+  handlers: WalletEventHandlers,
+): () => void {
+  const handleAccounts = (raw: unknown) => {
+    const list = Array.isArray(raw)
+      ? raw.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : [];
+    handlers.onAccountsChanged(list);
+  };
+
+  const handleChain = (raw: unknown) => {
+    const parsed = parseChainId(raw);
+    if (parsed !== null) {
+      handlers.onChainChanged(parsed);
+    }
+  };
+
+  provider.on?.('accountsChanged', handleAccounts);
+  provider.on?.('chainChanged', handleChain);
+
+  return () => {
+    provider.removeListener?.('accountsChanged', handleAccounts);
+    provider.removeListener?.('chainChanged', handleChain);
   };
 }
 

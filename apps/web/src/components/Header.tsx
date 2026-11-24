@@ -1,8 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
+  Copy,
   ExternalLink,
+  LogOut,
   Moon,
   RefreshCw,
   Sun,
@@ -25,6 +28,7 @@ interface HeaderProps {
   onSelectNetwork: (id: NetworkId) => void;
   onRefreshHealth: () => void;
   onConnectEvm: (rdns?: string) => Promise<void>;
+  onDisconnectEvm: () => void;
   onSwitchChain: () => Promise<void>;
 }
 
@@ -208,6 +212,121 @@ function SyncHealth({
   );
 }
 
+function WalletMenu({
+  network,
+  evmWallet,
+  walletBusy,
+  wrongChain,
+  onDisconnectEvm,
+  onSwitchChain,
+}: {
+  network: NetworkConfig;
+  evmWallet: EvmWalletState;
+  walletBusy: boolean;
+  wrongChain: boolean;
+  onDisconnectEvm: () => void;
+  onSwitchChain: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const popId = useId();
+  const address = evmWallet.address;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!address) return null;
+
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable in restricted contexts
+    }
+  };
+
+  return (
+    <div className="sync" ref={wrapRef}>
+      <button
+        type="button"
+        className="sync-pill"
+        aria-expanded={open}
+        aria-controls={popId}
+        onClick={() => setOpen((v) => !v)}
+        title={`Connected wallet: ${address}`}
+      >
+        <span className={`dot ${wrongChain ? 'dot-warn' : 'dot-ok'}`} aria-hidden="true" />
+        <span className="mono">{shortenAddress(address)}</span>
+        <ChevronDown size={13} className="chev" aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div id={popId} className="popover stack-sm" role="dialog" aria-label="Connected EVM wallet">
+          <div className="row-between">
+            <span className="popover-title">{evmWallet.providerName || 'Connected EVM Wallet'}</span>
+            <button type="button" className="btn btn-sm" onClick={() => void handleCopyAddress()}>
+              {copied ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+
+          <dl className="telemetry-list">
+            <dt>Address</dt>
+            <dd className="break-all">{address}</dd>
+            <dt>Wallet chain</dt>
+            <dd className={wrongChain ? 'text-warn' : 'text-ok'}>
+              {evmWallet.chainId !== null ? `chain ${evmWallet.chainId}` : '—'}
+              {wrongChain ? ` · expected ${network.evm.chainId}` : ''}
+            </dd>
+          </dl>
+
+          <div className="divider" />
+
+          <div className="stack-xs">
+            {wrongChain && (
+              <button
+                type="button"
+                className="btn btn-sm btn-warn btn-block"
+                onClick={() => void onSwitchChain()}
+                disabled={walletBusy}
+              >
+                Switch to {network.label} ({network.evm.chainId})
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-sm btn-danger btn-block"
+              onClick={() => {
+                setOpen(false);
+                onDisconnectEvm();
+              }}
+            >
+              <LogOut size={13} aria-hidden="true" />
+              Disconnect
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Header({
   network,
   health,
@@ -220,6 +339,7 @@ export function Header({
   onSelectNetwork,
   onRefreshHealth,
   onConnectEvm,
+  onDisconnectEvm,
   onSwitchChain,
 }: HeaderProps) {
   const wrongChain =
@@ -276,10 +396,14 @@ export function Header({
           <div className="header-wallet row" style={{ gap: 6, flexWrap: 'nowrap' }}>
             {evmWallet.address ? (
               <>
-                <span className="sync-pill" style={{ cursor: 'default' }} title={evmWallet.address}>
-                  <span className={`dot ${wrongChain ? 'dot-warn' : 'dot-ok'}`} aria-hidden="true" />
-                  <span className="mono">{shortenAddress(evmWallet.address)}</span>
-                </span>
+                <WalletMenu
+                  network={network}
+                  evmWallet={evmWallet}
+                  walletBusy={walletBusy}
+                  wrongChain={wrongChain}
+                  onDisconnectEvm={onDisconnectEvm}
+                  onSwitchChain={onSwitchChain}
+                />
                 {wrongChain && (
                   <button
                     type="button"

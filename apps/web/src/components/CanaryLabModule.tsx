@@ -33,6 +33,7 @@ import type {
   EvmWalletState,
   GatewayHealth,
   NetworkConfig,
+  NetworkId,
   SnapshotDiff,
   TraceFrame,
   TxInspectionReport,
@@ -49,6 +50,7 @@ import {
   inspectTransactionHash,
   loadDefaultCanaryAddresses,
   readCanaryLiveState,
+  resolveKnownSelectorName,
   saveCustomCanaryAddresses,
   sendCanaryProbeTx,
   waitForReceiptAndInspect,
@@ -178,6 +180,7 @@ function TraceFrameRow({ frame, index }: { frame: TraceFrame; index: number }) {
   const isOog = frame.decodedRevert?.status === 429;
   const hasErr = Boolean(frame.error || frame.decodedRevert);
   const indentPx = Math.min(frame.depth, 6) * 16;
+  const selectorName = resolveKnownSelectorName(frame.inputSelector);
 
   return (
     <div
@@ -191,7 +194,10 @@ function TraceFrameRow({ frame, index }: { frame: TraceFrame; index: number }) {
           {frame.isGatewayPrecompile && (
             <span className="pill pill-sm pill-evm">NAC gateway hop · 0xff…0007</span>
           )}
-          <span className="pill pill-sm pill-muted mono">sel {frame.inputSelector}</span>
+          <span className="pill pill-sm pill-muted mono">
+            sel {frame.inputSelector}
+            {selectorName ? ` · ${selectorName}` : ''}
+          </span>
           {frame.decodedRevert?.status !== undefined && (
             <span className="pill pill-sm pill-danger">HTTP / NAC {frame.decodedRevert.status}</span>
           )}
@@ -299,8 +305,12 @@ export function CanaryLabModule({
   const [traceReport, setTraceReport] = useState<TxInspectionReport | null>(null);
   const [traceError, setTraceError] = useState<string | null>(null);
 
-  // Reload default manifest/override when network switches
+  const prevNetworkIdRef = useRef<NetworkId>(network.id);
+
+  // Reload default manifest/override only when the user actually switches networks
   useEffect(() => {
+    if (prevNetworkIdRef.current === network.id) return;
+    prevNetworkIdRef.current = network.id;
     const next = loadDefaultCanaryAddresses(network.id);
     setAddresses(next);
     setEvmInput(next.evmCanary);
@@ -310,14 +320,12 @@ export function CanaryLabModule({
     setLastExecution(null);
     setTraceReport(null);
     setTraceError(null);
-    setTxHashInput((prev) =>
-      initialTxHash && !autoRanInitialTxRef.current
-        ? initialTxHash
-        : next.proofTxs?.probeOogCatch ||
-          next.proofTxs?.probeRoundTrip ||
-          (network.id === 'previewnet' ? PREVIEWNET_SAMPLE_TX_HASH : prev),
+    setTxHashInput(
+      next.proofTxs?.probeOogCatch ||
+        next.proofTxs?.probeRoundTrip ||
+        (network.id === 'previewnet' ? PREVIEWNET_SAMPLE_TX_HASH : ''),
     );
-  }, [network.id, initialTxHash]);
+  }, [network.id]);
 
   const isConfigured =
     addresses.source !== 'unconfigured' &&
@@ -410,6 +418,16 @@ export function CanaryLabModule({
     return connected.provider;
   };
 
+  const applyTraceReport = useCallback(
+    (report: TxInspectionReport) => {
+      setTraceReport(report);
+      setTraceError(null);
+      setTxHashInput(report.txHash);
+      onTxHashChange?.(report.txHash);
+    },
+    [onTxHashChange],
+  );
+
   // Inspect any EVM tx hash
   const runTraceInspection = useCallback(
     async (explicitHash?: string) => {
@@ -418,12 +436,13 @@ export function CanaryLabModule({
         setTraceError('Enter a valid 32-byte 0x EVM transaction hash (66 characters).');
         return;
       }
+      setTxHashInput(hash);
       setTraceLoading(true);
       setTraceError(null);
       onTxHashChange?.(hash);
       try {
         const report = await inspectTransactionHash(network, hash);
-        setTraceReport(report);
+        applyTraceReport(report);
       } catch (err) {
         setTraceReport(null);
         setTraceError(err instanceof Error ? err.message : String(err));
@@ -431,7 +450,7 @@ export function CanaryLabModule({
         setTraceLoading(false);
       }
     },
-    [network, txHashInput, onTxHashChange],
+    [network, txHashInput, onTxHashChange, applyTraceReport],
   );
 
   // Auto-run trace inspection when opened via shareable ?tx=... URL param
@@ -532,9 +551,7 @@ export function CanaryLabModule({
       });
 
       const report = await waitForReceiptAndInspect(network, txHash, 45_000);
-      setTraceReport(report);
-      setTraceError(null);
-      onTxHashChange?.(txHash);
+      applyTraceReport(report);
 
       const [afterSnap, postState] = await Promise.all([
         captureBlockPinnedSnapshot(network, {
@@ -613,10 +630,24 @@ export function CanaryLabModule({
   const openTraceFor = (hash: string) => {
     setMode('trace');
     setTxHashInput(hash);
+    onTxHashChange?.(hash);
     if (traceReport?.txHash.toLowerCase() !== hash.toLowerCase()) {
       void runTraceInspection(hash);
     }
   };
+
+  const isExpectedRollbackRevert = useMemo(() => {
+    if (!traceReport || traceReport.status !== 'reverted') return false;
+    const topSelector = traceReport.frames[0]?.inputSelector?.toLowerCase();
+    if (topSelector === CANARY_SELECTORS.probeRollback) return true;
+    if (
+      addresses.proofTxs?.probeRollback &&
+      traceReport.txHash.toLowerCase() === addresses.proofTxs.probeRollback.toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  }, [traceReport, addresses.proofTxs?.probeRollback]);
 
   const michelsonSourceIsNull = liveState?.michelson?.lastSource === NULL_SOURCE_ADDRESS;
   const showProofChips =
@@ -1211,6 +1242,17 @@ export function CanaryLabModule({
                     </div>
                   </div>
                   <code className="muted xsmall break-all">{traceReport.txHash}</code>
+
+                  {isExpectedRollbackRevert && (
+                    <div className="alert alert-info">
+                      <RotateCcw size={14} aria-hidden="true" />
+                      <span>
+                        <strong className="strong">Expected revert</strong> —{' '}
+                        <code>probeRollback</code> intentionally triggers Michelson{' '}
+                        <code>FAILWITH</code> to prove atomic EVM state rollback.
+                      </span>
+                    </div>
+                  )}
 
                   {traceReport.decodedTopRevert && (
                     <div

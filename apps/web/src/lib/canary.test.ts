@@ -16,6 +16,7 @@ import {
   loadDefaultCanaryAddresses,
   parseNacCanaryMichelsonStorage,
   readCanaryLiveState,
+  resolveKnownSelectorName,
   sendCanaryProbeTx,
   unwrapProbeViewMichelineBytes,
 } from './canary';
@@ -559,5 +560,20 @@ describe('canary — callTracer flattening, 429 OOG detection, Blockscout fallba
     expect(report.decodedTopRevert?.kind).toBe('CROSS_RUNTIME_429_OOG');
     expect(report.decodedTopRevert?.status).toBe(429);
     expect(report.tzktUrl).toBe(`${net.michelson.explorerUrl}/${mirroredOp}`);
+  });
+
+  it('maps known Canary and NAC Gateway 4-byte selectors to readable method names', () => {
+    expect(resolveKnownSelectorName('0xa2b9cf04')).toBe('probeWrite');
+    expect(resolveKnownSelectorName('0x3afa6469')).toBe('probeRoundTrip');
+    expect(resolveKnownSelectorName('0x0464372c')).toBe('onMichelsonCallback');
+    expect(resolveKnownSelectorName('0x00aa2ecb')).toBe('probeView');
+    expect(resolveKnownSelectorName('0x6bab2b6f')).toBe('probeRollback');
+    expect(resolveKnownSelectorName('0x6BAB2B6F')).toBe('probeRollback');
+    expect(resolveKnownSelectorName('0xccc96ba6')).toBe('probeOog');
+    expect(resolveKnownSelectorName('0xa1544fc3')).toBe('callMichelson');
+    expect(resolveKnownSelectorName('0x8326329c')).toBe('callMichelsonView');
+    expect(resolveKnownSelectorName('0xbfe88b4b')).toBe('materializeAlias');
+    expect(resolveKnownSelectorName('0xdeadbeef')).toBeNull();
+    expect(resolveKnownSelectorName(undefined)).toBeNull();
   });
 });
