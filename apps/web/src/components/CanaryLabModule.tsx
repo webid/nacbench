@@ -715,7 +715,8 @@ export function CanaryLabModule({
               <span className="status-pair">
                 <RuntimePill runtime="evm" small />
                 <code title={addresses.evmCanary}>{shortAddr(addresses.evmCanary, 6, 4)}</code>
-                <ArrowLeftRight size={12} className="muted" aria-label="paired with" />
+                <ArrowLeftRight size={12} className="muted" aria-hidden="true" />
+                <span className="sr-only">paired with</span>
                 <RuntimePill runtime="michelson" small />
                 <code title={addresses.michelsonCanary}>
                   {shortAddr(addresses.michelsonCanary, 6, 4)}
@@ -775,16 +776,18 @@ export function CanaryLabModule({
                 />
               </button>
             )}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              aria-expanded={editOpen || !isConfigured}
-              aria-controls={`${uid}-addr-drawer`}
-              onClick={() => setEditOpen((v) => !v)}
-            >
-              <Settings2 size={13} aria-hidden="true" />
-              Addresses
-            </button>
+            {isConfigured && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                aria-expanded={editOpen}
+                aria-controls={`${uid}-addr-drawer`}
+                onClick={() => setEditOpen((v) => !v)}
+              >
+                <Settings2 size={13} aria-hidden="true" />
+                Addresses
+              </button>
+            )}
           </div>
         </div>
 

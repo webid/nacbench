@@ -1412,7 +1412,7 @@ export function AliasInspectorModule({
                         <option value="string">string</option>
                       </select>
                     </div>
-                    <div className="field" style={{ gridColumn: 'span 2', minWidth: 0 }}>
+                    <div className="field field-span-2">
                       <label htmlFor={`${uid}-bm-key`} className="field-label">
                         Key value
                       </label>

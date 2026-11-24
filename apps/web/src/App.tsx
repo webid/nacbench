@@ -7,6 +7,12 @@ import { Header } from './components/Header';
 import { WalletNeedPill, type WalletNeed } from './components/ui';
 import { DEFAULT_NETWORK, NETWORKS } from './lib/networks';
 import { fetchGatewayHealth } from './lib/rpc';
+import {
+  resolveInitialTheme,
+  subscribeSystemTheme,
+  toggleTheme,
+  type Theme,
+} from './lib/theme';
 import type {
   CodecPresetId,
   EvmWalletState,
@@ -118,6 +124,7 @@ function readInitialUrlState(): {
 
 export default function App() {
   const initialUrlRef = useRef(readInitialUrlState());
+  const [theme, setThemeState] = useState<Theme>(() => resolveInitialTheme());
   const [networkId, setNetworkId] = useState<NetworkId>(initialUrlRef.current.networkId);
   const [activeTab, setActiveTab] = useState<ModuleTab>(initialUrlRef.current.tab);
   const [urlPreset, setUrlPreset] = useState<CodecPresetId | undefined>(
@@ -140,6 +147,12 @@ export default function App() {
   const activeProviderRef = useRef<Eip1193Provider | null>(null);
 
   const network = NETWORKS[networkId];
+
+  useEffect(() => subscribeSystemTheme(setThemeState), []);
+
+  const handleToggleTheme = useCallback(() => {
+    setThemeState((current) => toggleTheme(current));
+  }, []);
 
   // Keep shareable URL query params synced without polluting browser history stack
   useEffect(() => {
@@ -273,6 +286,8 @@ export default function App() {
         evmWallet={evmWallet}
         walletBusy={walletBusy}
         walletError={walletError}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onSelectNetwork={setNetworkId}
         onRefreshHealth={() => void refreshHealth()}
         onConnectEvm={handleConnectEvm}

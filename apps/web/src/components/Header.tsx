@@ -1,6 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { AlertTriangle, ChevronDown, ExternalLink, RefreshCw, Wallet, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ExternalLink,
+  Moon,
+  RefreshCw,
+  Sun,
+  Wallet,
+  XCircle,
+} from 'lucide-react';
 import { NETWORK_LIST } from '../lib/networks';
+import type { Theme } from '../lib/theme';
 import type { EvmWalletState, GatewayHealth, NetworkConfig, NetworkId } from '../lib/types';
 
 interface HeaderProps {
@@ -10,6 +20,8 @@ interface HeaderProps {
   evmWallet: EvmWalletState;
   walletBusy: boolean;
   walletError: string | null;
+  theme: Theme;
+  onToggleTheme: () => void;
   onSelectNetwork: (id: NetworkId) => void;
   onRefreshHealth: () => void;
   onConnectEvm: (rdns?: string) => Promise<void>;
@@ -203,6 +215,8 @@ export function Header({
   evmWallet,
   walletBusy,
   walletError,
+  theme,
+  onToggleTheme,
   onSelectNetwork,
   onRefreshHealth,
   onConnectEvm,
@@ -213,6 +227,8 @@ export function Header({
     evmWallet.chainId !== null &&
     evmWallet.chainId !== network.evm.chainId;
 
+  const nextThemeLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+
   return (
     <header className="header">
       <div className="container">
@@ -220,9 +236,9 @@ export function Header({
           <div className="brand">
             <div className="brand-mark" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L3 7V17L12 22V2Z" fill="#cfae7c" fillOpacity="0.85" />
-                <path d="M12 2L21 7V17L12 22V2Z" fill="#8bb6cf" fillOpacity="0.85" />
-                <path d="M12 7L7 10V14L12 17L17 14V10L12 7Z" fill="#121317" />
+                <path d="M12 2L3 7V17L12 22V2Z" fill="var(--evm)" fillOpacity="0.88" />
+                <path d="M12 2L21 7V17L12 22V2Z" fill="var(--michelson)" fillOpacity="0.88" />
+                <path d="M12 7L7 10V14L12 17L17 14V10L12 7Z" fill="var(--surface)" />
               </svg>
             </div>
             <div className="brand-text">
@@ -287,6 +303,19 @@ export function Header({
                 {walletBusy ? 'Connecting…' : 'Connect wallet'}
               </button>
             )}
+            <button
+              type="button"
+              className="btn btn-sm theme-toggle"
+              onClick={onToggleTheme}
+              aria-label={nextThemeLabel}
+              title={nextThemeLabel}
+            >
+              {theme === 'dark' ? (
+                <Sun size={15} aria-hidden="true" />
+              ) : (
+                <Moon size={15} aria-hidden="true" />
+              )}
+            </button>
           </div>
         </div>
 
